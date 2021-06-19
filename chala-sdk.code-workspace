@@ -1,0 +1,22 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/*.log": true,
+      "**/build": true,
+      "**/bin": true,
+      "**/.vscode": true,
+      "**/jacoco": true,
+      ".gradle": true,
+      ".gitignore": true,
+      ".gitattributes": true,
+      "gradle*": true,
+      "LICENSE": true
+    },
+    "java.configuration.updateBuildConfiguration": "automatic"
+  }
+}

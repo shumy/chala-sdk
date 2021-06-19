@@ -1,0 +1,51 @@
+plugins {
+  id 'com.github.ben-manes.versions' version '0.39.0' // run to check latest verions ./gradlew dependencyUpdates
+  id 'org.jetbrains.kotlin.jvm' version '1.5.20-RC'
+  id 'com.adarshr.test-logger' version '3.0.0'
+  id 'jacoco'
+}
+
+allprojects {
+  apply plugin: 'org.jetbrains.kotlin.jvm'
+  apply plugin: 'com.adarshr.test-logger'
+  apply plugin: 'jacoco'
+  
+  group 'net.chala-sdk'
+  version '0.1.0'
+  
+  repositories {
+    mavenCentral()
+  }
+
+  dependencies {
+    implementation platform('org.jetbrains.kotlin:kotlin-bom')
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
+    implementation 'org.jetbrains.kotlin:kotlin-reflect'
+    
+    implementation 'org.slf4j:slf4j-simple:2.0.0-alpha1'
+
+    testImplementation 'org.jetbrains.kotlin:kotlin-test'
+    testImplementation 'org.jetbrains.kotlin:kotlin-test-junit'
+  }
+  
+  test {
+    dependsOn cleanTest
+    finalizedBy jacocoTestReport
+  }
+
+  jacoco {
+    reportsDirectory = file("${project.projectDir}/jacoco")
+  }
+
+  jar {
+    manifest {
+      attributes 'Implementation-Title': project.name,
+        'Implementation-Version': archiveVersion,
+        'Built-By': 'micaelpedrosa@gmail.com'
+    }
+  }
+
+  clean {
+    delete "${project.projectDir}/jacoco"
+  }
+}

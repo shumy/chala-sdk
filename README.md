@@ -1,2 +1,1 @@
-# chala-sdk
-Blockchain SDK for Kotlin with Hibernate Integration
+# Blockchain SDK for Kotlin with Hibernate Integration (experimental)
