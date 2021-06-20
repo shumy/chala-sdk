@@ -54,23 +54,46 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
     }
   }
 
-  private val session = AtomicReference<Session>()
+  private val isClientCall = ThreadLocal<Boolean>()
+  private val threadSessions = ThreadLocal<Session>()
+  private val chainSession = AtomicReference<Session>()
 
-  internal fun save(entity: Any) = session.get().persist(entity)
+  internal fun save(entity: Any) = getSession().persist(entity)
 
   internal fun <E> find(type: Class<E>, query: String, vararg params: Any): Sequence<E> {
-    val q = session.get().createQuery(query, type)
+    val q = getSession().createQuery(query, type)
     params.forEachIndexed() { i, p -> q.setParameter(i, p) }
     return q.stream().asSequence()
   }
 
-  internal fun <E> findOne(type: Class<E>, query: String, vararg params: Any): E? =
-    find(type, query, params).first()
-
   internal fun <E> findById(type: Class<E>, id: Any): E? =
-    session.get().find(type, id)
+    getSession().find(type, id)
 
 
+  // -------------------------------------------------------------------------
+  // JPA session management --------------------------------------------------
+  // -------------------------------------------------------------------------
+  internal fun getSession(): Session {
+    if (isClientCall.get() == true)
+      return threadSessions.get() ?: run {
+        val ss = sf.openSession()
+        threadSessions.set(ss)
+        ss
+      }
+
+    return chainSession.get()!!
+  }
+
+  internal fun resetThreadSession() = threadSessions.get()?.let {
+    it.transaction?.rollback()
+    it.close()
+    threadSessions.set(null)
+  }
+
+
+  // -------------------------------------------------------------------------
+  // exclusive chain operations ----------------------------------------------
+  // -------------------------------------------------------------------------
   init {
     spi.onStart(this::start)
     spi.onProcessTx(this::process)
@@ -80,7 +103,7 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
 
   private fun start() = sf.openSession().let {
     it.beginTransaction()
-    session.set(it)
+    chainSession.set(it)
   }
 
   private fun process(tx: Tx) {
@@ -91,7 +114,7 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
   }
 
   private fun commit(): String {
-    session.get().let {
+    chainSession.get().let {
       it.transaction.commit()
       it.close()
     }
@@ -100,7 +123,7 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
     return ""
   }
 
-  private fun rollback() = session.get().let {
+  private fun rollback() = chainSession.get().let {
     it.transaction.rollback()
     it.close()
   }
