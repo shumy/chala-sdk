@@ -1,6 +1,6 @@
 plugins {
   id 'com.github.ben-manes.versions' version '0.39.0' // run to check latest verions ./gradlew dependencyUpdates
-  id 'org.jetbrains.kotlin.jvm' version '1.5.20-RC'
+  id 'org.jetbrains.kotlin.jvm' version '1.5.10'
   id 'com.adarshr.test-logger' version '3.0.0'
   id 'jacoco'
 }
@@ -22,7 +22,7 @@ allprojects {
     implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
     implementation 'org.jetbrains.kotlin:kotlin-reflect'
     
-    implementation 'org.slf4j:slf4j-simple:2.0.0-alpha1'
+    implementation 'org.slf4j:slf4j-simple:1.7.31'
 
     testImplementation 'org.jetbrains.kotlin:kotlin-test'
     testImplementation 'org.jetbrains.kotlin:kotlin-test-junit'

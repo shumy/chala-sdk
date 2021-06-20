@@ -1,3 +1,4 @@
 dependencies {
-  implementation project(':')
+  implementation project(':chala-spi')
+  implementation 'org.hibernate:hibernate-core:5.5.2.Final'
 }
