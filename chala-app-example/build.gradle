@@ -1,0 +1,14 @@
+plugins {
+  id 'application'
+}
+
+dependencies {
+  implementation project(':chala-spi')
+  implementation project(':chala-core')
+
+  implementation 'com.h2database:h2:1.4.200'
+}
+
+application {
+  mainClass = 'net.chala.app.example.MainKt'
+}

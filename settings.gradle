@@ -1,3 +1,3 @@
-include 'chala-spi', 'chala-hibernate'
+include 'chala-spi', 'chala-core', 'chala-app-example'
 
 rootProject.name = 'chala-sdk'

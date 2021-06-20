@@ -1,0 +1,21 @@
+plugins {
+  id 'org.jetbrains.kotlin.plugin.serialization' version '1.5.10'
+  id 'org.jetbrains.kotlin.plugin.allopen' version "1.5.10"
+}
+
+dependencies {
+  implementation project(':chala-spi')
+  implementation 'org.hibernate:hibernate-core:5.5.2.Final'
+  implementation 'org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.2.1'
+}
+
+allOpen {
+  annotation('net.chala.model.AppState')
+  // annotations("com.another.Annotation", "com.third.Annotation")
+}
+
+compileKotlin {
+  kotlinOptions {
+    freeCompilerArgs += '-Xopt-in=kotlin.RequiresOptIn'
+  }
+}
