@@ -1,6 +1,7 @@
 package net.chala
 
 import net.chala.api.ChalaSpi
+import net.chala.api.Tx
 import org.hibernate.Session
 import org.hibernate.SessionFactory
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder
@@ -13,7 +14,7 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
   companion object {
     private val LOGGER = LoggerFactory.getLogger(ChalaStore::class.java)
 
-    lateinit var STORE: ChalaStore
+    var STORE: ChalaStore? = null
       private set
 
     fun setup(spi: ChalaSpi) {
@@ -44,46 +45,53 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
       LOGGER.info("SessionFactory created.")
       STORE = ChalaStore(spi, sf)
     }
+
+    fun submmit(dto: ChalaRequest) {
+      // TODO: encode dto -> tx
+      // TODO: sign tx with node key
+
+      // STORE.spi.submmit(tx)
+    }
   }
 
-  private val threadSessions = ThreadLocal<Session>()
-  private val chainSession = AtomicReference<Session>()
+  private val session = AtomicReference<Session>()
 
-  inline fun <reified E> find(query: String, vararg params: Any): Sequence<E> {
-    val q = getSession().createQuery(query, E::class.java)
+  internal fun save(entity: Any) = session.get().persist(entity)
+
+  internal fun <E> find(type: Class<E>, query: String, vararg params: Any): Sequence<E> {
+    val q = session.get().createQuery(query, type)
     params.forEachIndexed() { i, p -> q.setParameter(i, p) }
     return q.stream().asSequence()
   }
 
-  inline fun <reified E> findOne(query: String, vararg params: Any): E? =
-    find<E>(query, params).first()
+  internal fun <E> findOne(type: Class<E>, query: String, vararg params: Any): E? =
+    find(type, query, params).first()
 
-  fun getSession(): Session = threadSessions.get() ?: run {
-    val ss = sf.openSession()
-    threadSessions.set(ss)
-    ss
-  }
-
-  fun resetSession() = threadSessions.get()?.let {
-    it.transaction?.rollback()
-    it.close()
-    threadSessions.set(null)
-  }
+  internal fun <E> findById(type: Class<E>, id: Any): E? =
+    session.get().find(type, id)
 
 
   init {
     spi.onStart(this::start)
+    spi.onProcessTx(this::process)
     spi.onCommit(this::commit)
     spi.onRollback(this::rollback)
   }
 
   private fun start() = sf.openSession().let {
     it.beginTransaction()
-    chainSession.set(it)
+    session.set(it)
+  }
+
+  private fun process(tx: Tx) {
+    // TODO: decode tx -> dto
+
+    // dto.check()
+    // dto.process()
   }
 
   private fun commit(): String {
-    chainSession.get().let {
+    session.get().let {
       it.transaction.commit()
       it.close()
     }
@@ -92,7 +100,7 @@ class ChalaStore(private val spi: ChalaSpi, private val sf: SessionFactory) {
     return ""
   }
 
-  private fun rollback() = chainSession.get().let {
+  private fun rollback() = session.get().let {
     it.transaction.rollback()
     it.close()
   }
