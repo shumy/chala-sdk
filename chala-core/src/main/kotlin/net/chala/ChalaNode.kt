@@ -7,6 +7,7 @@ import kotlinx.serialization.protobuf.ProtoBuf
 import net.chala.api.ChalaChainSpi
 import net.chala.api.Tx
 import net.chala.model.AppState
+import net.chala.model.DataPacket
 import net.chala.store.ChalaStore
 import net.chala.store.StoreConfig
 import org.slf4j.LoggerFactory
@@ -22,6 +23,9 @@ class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
     }
 
     fun setup(chain: ChalaChainSpi, config: StoreConfig) {
+      if (NODE != null)
+        throw ChalaException("ChalaNode is already initialized!")
+
       val store = ChalaStore(config)
 
       println("-------------------------------------- ChalaSDK --------------------------------------")
@@ -29,25 +33,27 @@ class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
 
       NODE = ChalaNode(chain, store)
       node.loadState()
+      node.context.set(RunContext.CLIENT)
       LOGGER.info("ChalaNode configured.")
     }
 
     @OptIn(ExperimentalSerializationApi::class)
-    fun submit(dto: ChalaRequest) {
+    fun submit(request: ChalaRequest) {
       if (node.context.get() != RunContext.CLIENT)
         Bug.SUBMIT.report()
 
       // disable database access with CHECK context
       node.context.set(RunContext.CHECK)
-        dto.check()
+        request.check()
       node.context.set(RunContext.CLIENT)
 
       // TODO: encode failure ??
-      val data = ProtoBuf.encodeToByteArray(dto)
+      val data = ProtoBuf.encodeToByteArray(request.serializer, request.data)
+      val packet = ProtoBuf.encodeToByteArray(DataPacket(request.javaClass.canonicalName, data))
 
       // TODO: sign tx with node key
 
-      node.chain.submmit(Tx(data))
+      node.chain.submmit(Tx(packet))
     }
   }
 
@@ -83,12 +89,15 @@ class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
   @OptIn(ExperimentalSerializationApi::class)
   private fun commitTx(tx: Tx) {
     // TODO: decode failure ??
-    val dto = ProtoBuf.decodeFromByteArray<ChalaRequest>(tx.data)
+    val packet = ProtoBuf.decodeFromByteArray<DataPacket>(tx.data)
+    val type = Class.forName(packet.type)
+
+    // TODO: how to get dto with packet and type ?
 
     try {
       // disable database access with CHECK context
       context.set(RunContext.CHECK)
-      dto.check()
+      //dto.check()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to check transaction. Ignore and proceed to the next one.")
@@ -98,7 +107,7 @@ class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
     try {
       // disable database changes with VALIDATE context
       context.set(RunContext.VALIDATE)
-      dto.validate()
+      //dto.validate()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to validate transaction. Ignore and proceed to the next one.")
@@ -108,7 +117,7 @@ class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
     try {
       // enable database changes with COMMIT context
       context.set(RunContext.COMMIT)
-      dto.commit()
+      //dto.commit()
 
       // TODO: update state var
 

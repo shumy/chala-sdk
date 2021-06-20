@@ -1,5 +1,6 @@
 package net.chala.model
 
+import kotlinx.serialization.Serializable
 import javax.persistence.Column
 import javax.persistence.Entity
 import javax.persistence.Id
@@ -12,3 +13,6 @@ internal class AppState (
   @Column(nullable = false)
   val state: String
 )
+
+@Serializable
+open class DataPacket(val type: String, val data: ByteArray)

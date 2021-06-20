@@ -6,6 +6,7 @@ dependencies {
   implementation project(':chala-spi')
   implementation project(':chala-core')
 
+  implementation 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.2.1'
   implementation 'com.h2database:h2:1.4.200'
 }
 

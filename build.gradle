@@ -1,12 +1,18 @@
 plugins {
-  id 'com.github.ben-manes.versions' version '0.39.0' // run to check latest verions ./gradlew dependencyUpdates
   id 'org.jetbrains.kotlin.jvm' version '1.5.10'
+  id 'org.jetbrains.kotlin.plugin.serialization' version '1.5.10'
+  id 'org.jetbrains.kotlin.plugin.allopen' version '1.5.10'
+
+  id 'com.github.ben-manes.versions' version '0.39.0' // run to check latest verions ./gradlew dependencyUpdates
   id 'com.adarshr.test-logger' version '3.0.0'
   id 'jacoco'
 }
 
 allprojects {
   apply plugin: 'org.jetbrains.kotlin.jvm'
+  apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
+  apply plugin: 'org.jetbrains.kotlin.plugin.allopen'
+
   apply plugin: 'com.adarshr.test-logger'
   apply plugin: 'jacoco'
   

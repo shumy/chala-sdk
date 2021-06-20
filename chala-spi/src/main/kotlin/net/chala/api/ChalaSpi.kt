@@ -1,7 +1,7 @@
 package net.chala.api
 
 interface ChalaChainSpi {
-  fun submmit(dto: Tx): Unit
+  fun submmit(tx: Tx): Unit
 
   // should start a transaction session
   fun onStartBlock(start: (Long) -> Unit): Unit

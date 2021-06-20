@@ -1,5 +1,8 @@
 package net.chala
 
+import kotlinx.serialization.KSerializer
+import kotlin.reflect.full.companionObjectInstance
+
 open class ChalaRecord {
   fun save() = ChalaNode.node.store.save(this)
 }
@@ -20,8 +23,18 @@ open class ChalaRepository<E> {
   }
 }
 
-interface ChalaRequest {
-  fun check(): Unit
-  fun validate(): Unit
-  fun commit(): Unit
+
+abstract class ChalaRequest {
+  abstract val data: Any
+
+  @Suppress("UNCHECKED_CAST")
+  val serializer: KSerializer<Any> by lazy {
+    val companion = data.javaClass.kotlin.companionObjectInstance!!
+    val serializerMethod = companion.javaClass.getMethod("serializer")
+    serializerMethod.invoke(companion) as KSerializer<Any>
+  }
+
+  abstract fun check(): Unit
+  abstract fun validate(): Unit
+  abstract fun commit(): Unit
 }
