@@ -25,7 +25,7 @@ import kotlin.reflect.KClass
 
 abstract class StoreConfig(internal val conf: Configuration)
 
-class H2InMemoryConfig(vararg entities: KClass<*>) : StoreConfig(
+class H2InMemoryConfig(entities: List<KClass<*>>) : StoreConfig(
   Configuration().apply {
     setProperty("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
     setProperty("hibernate.connection.driver_class", "org.h2.Driver")

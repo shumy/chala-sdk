@@ -9,7 +9,7 @@ import org.hibernate.boot.registry.StandardServiceRegistryBuilder
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.streams.asSequence
 
-class ChalaStore(config: StoreConfig) {
+internal class ChalaStore(config: StoreConfig) {
   private var sf: SessionFactory
 
   init {

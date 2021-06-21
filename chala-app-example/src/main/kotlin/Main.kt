@@ -3,8 +3,10 @@ package net.chala.app.example
 import kotlinx.serialization.Serializable
 import net.chala.ChalaNode
 import net.chala.ChalaRequest
+import net.chala.annotation.Request
 import net.chala.api.ChalaChainSpi
 import net.chala.api.Tx
+import net.chala.conf.ChalaConfiguration
 import net.chala.store.H2InMemoryConfig
 
 class TestChain : ChalaChainSpi {
@@ -32,7 +34,8 @@ class TestChain : ChalaChainSpi {
 @Serializable
 data class TestData(val name: String)
 
-class TestRequest(override val data: TestData) : ChalaRequest() {
+@Request
+class TestRequest(override val data: TestData) : ChalaRequest {
   override fun check() {
     println("Calling TestRequest.check: $data")
   }
@@ -47,9 +50,12 @@ class TestRequest(override val data: TestData) : ChalaRequest() {
 }
 
 fun main() {
-  ChalaNode.setup(TestChain(), H2InMemoryConfig())
+  val conf = ChalaConfiguration.scan("net.chala.app.example")
+  conf.chain = TestChain()
+  conf.storeConf = H2InMemoryConfig(conf.jpaClasses)
 
-  TestData.serializer()
+  /*ChalaNode.setup(conf)
+
   val data = TestData("Alex")
-  ChalaNode.submit(TestRequest(data))
+  ChalaNode.submit(TestRequest(data))*/
 }

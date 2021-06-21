@@ -24,17 +24,10 @@ open class ChalaRepository<E> {
 }
 
 
-abstract class ChalaRequest {
-  abstract val data: Any
+interface ChalaRequest {
+  val data: Any
 
-  @Suppress("UNCHECKED_CAST")
-  val serializer: KSerializer<Any> by lazy {
-    val companion = data.javaClass.kotlin.companionObjectInstance!!
-    val serializerMethod = companion.javaClass.getMethod("serializer")
-    serializerMethod.invoke(companion) as KSerializer<Any>
-  }
-
-  abstract fun check(): Unit
-  abstract fun validate(): Unit
-  abstract fun commit(): Unit
+  fun check(): Unit
+  fun validate(): Unit
+  fun commit(): Unit
 }

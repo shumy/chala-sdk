@@ -4,8 +4,10 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
+import net.chala.annotation.Request
 import net.chala.api.ChalaChainSpi
 import net.chala.api.Tx
+import net.chala.conf.ChalaConfiguration
 import net.chala.model.AppState
 import net.chala.model.DataPacket
 import net.chala.store.ChalaStore
@@ -13,25 +15,25 @@ import net.chala.store.StoreConfig
 import org.slf4j.LoggerFactory
 import java.util.*
 
-class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
-  companion object {
-    private val LOGGER = LoggerFactory.getLogger(ChalaNode::class.java)
+private val LOGGER = LoggerFactory.getLogger(ChalaNode::class.java)
 
+class ChalaNode private constructor(internal val store: ChalaStore, val chain: ChalaChainSpi, val config: ChalaConfiguration) {
+  companion object {
     private var NODE: ChalaNode? = null
     val node: ChalaNode by lazy {
       NODE ?: throw ChalaException("Uninitialized ChalaNode! Please run ChalaNode.setup(..)")
     }
 
-    fun setup(chain: ChalaChainSpi, config: StoreConfig) {
+    fun setup(config: ChalaConfiguration) {
       if (NODE != null)
         throw ChalaException("ChalaNode is already initialized!")
 
-      val store = ChalaStore(config)
+      val store = ChalaStore(config.storeConf)
 
       println("-------------------------------------- ChalaSDK --------------------------------------")
       LOGGER.info("ChalaStore configured.")
 
-      NODE = ChalaNode(chain, store)
+      NODE = ChalaNode(store, config.chain, config)
       node.loadState()
       node.context.set(RunContext.CLIENT)
       LOGGER.info("ChalaNode configured.")
@@ -47,8 +49,11 @@ class ChalaNode(private val chain: ChalaChainSpi, val store: ChalaStore) {
         request.check()
       node.context.set(RunContext.CLIENT)
 
-      // TODO: encode failure ??
-      val data = ProtoBuf.encodeToByteArray(request.serializer, request.data)
+      val requestName = request.javaClass.canonicalName
+      val serializer = node.config.serializers[requestName] ?:
+        throw ChalaException("$requestName must be annotated with ${Request::class.qualifiedName}!")
+
+      val data = ProtoBuf.encodeToByteArray(serializer, request.data)
       val packet = ProtoBuf.encodeToByteArray(DataPacket(request.javaClass.canonicalName, data))
 
       // TODO: sign tx with node key
