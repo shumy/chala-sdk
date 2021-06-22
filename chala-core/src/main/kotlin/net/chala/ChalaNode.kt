@@ -4,16 +4,17 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
-import net.chala.annotation.Request
+import net.chala.annotation.Command
 import net.chala.api.ChalaChainSpi
-import net.chala.api.Tx
 import net.chala.conf.ChalaConfiguration
 import net.chala.model.AppState
 import net.chala.model.DataPacket
 import net.chala.store.ChalaStore
-import net.chala.store.StoreConfig
 import org.slf4j.LoggerFactory
+import java.security.MessageDigest
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+
 
 private val LOGGER = LoggerFactory.getLogger(ChalaNode::class.java)
 
@@ -51,28 +52,35 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
 
       val requestName = request.javaClass.canonicalName
       val serializer = node.config.serializers[requestName] ?:
-        throw ChalaException("$requestName must be annotated with ${Request::class.qualifiedName}!")
+        throw ChalaException("$requestName must be annotated with ${Command::class.qualifiedName}!")
 
       val data = ProtoBuf.encodeToByteArray(serializer, request.data)
-      val packet = ProtoBuf.encodeToByteArray(DataPacket(request.javaClass.canonicalName, data))
+      val packet = ProtoBuf.encodeToByteArray(DataPacket(requestName, data))
 
-      // TODO: sign tx with node key
+      // TODO: sign packet -> tx with node key
+      val tx = packet
 
-      node.chain.submmit(Tx(packet))
+      node.chain.submmit(tx)
     }
   }
 
   // -------------------------------------------------------------------------
   // exclusive chain operations ----------------------------------------------
   // -------------------------------------------------------------------------
-  private lateinit var state: String
+  private val pendingTx = mutableListOf<ByteArray>()
+  private lateinit var state: ByteArray
+  private lateinit var request: ChalaRequest
+  private lateinit var data: Any
+
+  private val locker = ReentrantLock()
   internal val context = ThreadLocal<RunContext>()
 
   init {
-    chain.onStartBlock(this::startBlock)
-    chain.onCommitTx(this::commitTx)
-    chain.onCommitBlock(this::commitBlock)
-    chain.onRollbackBlock(this::rollbackBlock)
+    chain.onStartBlock = this::startBlock
+    chain.onValidateTx = this::validateTx
+    chain.onCommitTx = this::commitTx
+    chain.onCommitBlock = this::commitBlock
+    chain.onRollbackBlock = this::rollbackBlock
   }
 
   internal fun loadState() {
@@ -80,88 +88,109 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
       val query = it.createQuery("from AppState order by height desc")
       query.maxResults = 1
       val appState = query.uniqueResult() as AppState?
-      state = appState?.state ?: "base-line:${UUID.randomUUID()}"
+      state = appState?.state ?: "base-line:${UUID.randomUUID()}".toByteArray()
     }
+  }
+
+  fun startClientRequest() {
+    context.set(RunContext.CLIENT)
   }
 
   private fun startBlock(height: Long) {
+    locker.lock()
     context.set(RunContext.CHAIN)
-    store.getSession().let {
-      it.beginTransaction()
-    }
+    store.getSession().beginTransaction()
   }
 
   @OptIn(ExperimentalSerializationApi::class)
-  private fun commitTx(tx: Tx) {
-    // TODO: decode failure ??
-    val packet = ProtoBuf.decodeFromByteArray<DataPacket>(tx.data)
-    val type = Class.forName(packet.type)
+  private fun validateTx(tx: ByteArray): Boolean {
+    try {
+      // TODO: check signature of tx and unpack
+      val packet = ProtoBuf.decodeFromByteArray<DataPacket>(tx)
+      val serializer = config.serializers[packet.type]
+        ?: throw ChalaException("${packet.type} must be annotated with ${Command::class.qualifiedName}!")
 
-    // TODO: how to get dto with packet and type ?
+      data = ProtoBuf.decodeFromByteArray(serializer, packet.data)
+
+      val requestConstructor = config.constructors[packet.type]!!
+      request = requestConstructor.call(data)
+    } catch (ex: Throwable) {
+      // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
+      LOGGER.warn("Failed to decode transaction. Ignore and proceed to the next one.")
+      return false
+    }
 
     try {
       // disable database access with CHECK context
       context.set(RunContext.CHECK)
-      //dto.check()
+      request.check()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to check transaction. Ignore and proceed to the next one.")
-      return
+      return false
     }
 
     try {
       // disable database changes with VALIDATE context
       context.set(RunContext.VALIDATE)
-      //dto.validate()
+      request.validate()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to validate transaction. Ignore and proceed to the next one.")
-      return
+      return false
     }
 
+    pendingTx.add(tx)
+    return true
+  }
+
+  private fun commitTx() {
     try {
       // enable database changes with COMMIT context
       context.set(RunContext.COMMIT)
-      //dto.commit()
-
-      // TODO: update state var
-
+      request.commit()
     } catch (ex: Throwable) {
       // Can contain pending changes in the hibernate session. Abort the entire block
       // Possible exception at this phase could be related to DB connectivity
-      throw ChalaException("Unable to commit transaction due to: ${ex.message}. Problem could be related to DB connectivity!")
+      throw ChalaException("Unable to commit transaction due to: ${ex.message}.")
     }
   }
 
-  private fun commitBlock(height: Long): String {
-    context.set(RunContext.CHAIN)
+  private fun commitBlock(height: Long): ByteArray {
+    val digester = MessageDigest.getInstance("SHA-256")
+    val newState = digester.digest(pendingTx.reduce { acc, bytes -> acc + bytes })
+
     store.getSession().let {
-      try {
-        it.persist(AppState(height, state))
-        it.transaction.commit()
-      } catch (ex: Throwable) {
-        LOGGER.error("Failed to commit transaction. Rollback block at height: $height")
-        it.transaction.rollback()
-      } finally {
-        it.close()
-        store.chainSession.set(null)
-      }
+      val appState = AppState(height, newState)
+      it.persist(appState)
+      it.transaction.commit()
+
+      state = newState
+      LOGGER.info("Block committed for $appState")
+
+      it.close()
+      store.chainSession.set(null)
     }
+
+    context.set(RunContext.CLIENT)
+    locker.unlock()
 
     return state
   }
 
-  private fun rollbackBlock(height: Long) {
-    context.set(RunContext.CHAIN)
+  private fun rollbackBlock(height: Long, ex: Throwable) {
     store.getSession().let {
       try {
-        LOGGER.error("Forced block rollback at height: $height")
+        LOGGER.error("Forced block rollback at height: $height with reason ${ex.message}")
         it.transaction.rollback()
       } catch (ex: Throwable) {
         // ignore this! Nothing we can do here
       } finally {
         it.close()
         store.chainSession.set(null)
+
+        context.set(RunContext.CLIENT)
+        locker.unlock()
       }
     }
   }

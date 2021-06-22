@@ -1,16 +1,11 @@
 package net.chala.api
 
 interface ChalaChainSpi {
-  fun submmit(tx: Tx): Unit
+  var onStartBlock: (Long) -> Unit
+  var onValidateTx: (ByteArray) -> Boolean
+  var onCommitTx: () -> Unit
+  var onCommitBlock: (Long) -> ByteArray
+  var onRollbackBlock: (Long, Throwable) -> Unit
 
-  // should start a transaction session
-  fun onStartBlock(start: (Long) -> Unit): Unit
-
-  fun onCommitTx(tx: (Tx) -> Unit): Unit
-
-  // should terminate the active transaction session
-  fun onCommitBlock(commit: (Long) -> String): Unit
-  fun onRollbackBlock(rollback: (Long) -> Unit): Unit
+  fun submmit(tx: ByteArray): Unit
 }
-
-class Tx (val data: ByteArray, val signature: ByteArray? = null)

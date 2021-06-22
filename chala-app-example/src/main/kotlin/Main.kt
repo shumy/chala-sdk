@@ -3,59 +3,85 @@ package net.chala.app.example
 import kotlinx.serialization.Serializable
 import net.chala.ChalaNode
 import net.chala.ChalaRequest
-import net.chala.annotation.Request
+import net.chala.annotation.Command
 import net.chala.api.ChalaChainSpi
-import net.chala.api.Tx
 import net.chala.conf.ChalaConfiguration
 import net.chala.store.H2InMemoryConfig
+import java.util.concurrent.ConcurrentLinkedQueue
 
-class TestChain : ChalaChainSpi {
-  override fun submmit(tx: Tx) {
-    println("Calling Chain.submmit: ${tx.data.decodeToString()}")
-  }
+class TestChain(private val txPerBlock: Int) : ChalaChainSpi {
+  override lateinit var onStartBlock: (Long) -> Unit
+  override lateinit var onValidateTx: (ByteArray) -> Boolean
+  override lateinit var onCommitTx: () -> Unit
+  override lateinit var onCommitBlock: (Long) -> ByteArray
+  override lateinit var onRollbackBlock: (Long, Throwable) -> Unit
 
-  override fun onStartBlock(start: (Long) -> Unit) {
-    println("Registering Chain.onStartBlock")
-  }
+  private var bNumber = 0L
+  private val block = ConcurrentLinkedQueue<ByteArray>()
 
-  override fun onCommitTx(tx: (Tx) -> Unit) {
-    println("Registering Chain.onCommitTx")
-  }
+  override fun submmit(tx: ByteArray) {
+    println("Chain.submmit: ${tx.decodeToString()}")
 
-  override fun onCommitBlock(commit: (Long) -> String) {
-    println("Registering Chain.onCommitBlock")
-  }
+    block.add(tx)
+    if (block.size < txPerBlock)
+      return
 
-  override fun onRollbackBlock(rollback: (Long) -> Unit) {
-    println("Registering Chain.onRollbackBlock")
+    bNumber++
+    try {
+      println("  Chain.onStartBlock")
+      onStartBlock(bNumber)
+
+      block.forEach {
+        println("    Chain.onValidateTx")
+        if (onValidateTx(it)) {
+          println("    Chain.onCommitTx")
+          onCommitTx()
+        }
+      }
+
+      println("  Chain.onCommitBlock")
+      onCommitBlock(bNumber)
+    } catch (ex: Throwable) {
+      println("  Chain.onRollbackBlock")
+      onRollbackBlock(bNumber, ex)
+    } finally {
+      block.clear()
+    }
   }
 }
 
 @Serializable
-data class TestData(val name: String)
+data class TestData(val name: String, val index: Int)
 
-@Request
+@Command
 class TestRequest(override val data: TestData) : ChalaRequest {
   override fun check() {
-    println("Calling TestRequest.check: $data")
+    println("      TestRequest.check: $data")
   }
 
   override fun validate() {
-    println("Calling TestRequest.validate: $data")
+    println("      TestRequest.validate: $data")
+    if (data.index % 3 == 2)
+      throw RuntimeException("Simulated validation error!")
   }
 
   override fun commit() {
-    println("Calling TestRequest.commit: $data")
+    println("      TestRequest.commit: $data")
   }
 }
 
 fun main() {
   val conf = ChalaConfiguration.scan("net.chala.app.example")
-  conf.chain = TestChain()
+  conf.chain = TestChain(4)
   conf.storeConf = H2InMemoryConfig(conf.jpaClasses)
 
-  /*ChalaNode.setup(conf)
+  ChalaNode.setup(conf)
 
-  val data = TestData("Alex")
-  ChalaNode.submit(TestRequest(data))*/
+  for (index in 0..8) {
+    //thread {
+      ChalaNode.node.startClientRequest()
+      val alex = TestData("Name", index)
+      ChalaNode.submit(TestRequest(alex))
+    //}
+  }
 }
