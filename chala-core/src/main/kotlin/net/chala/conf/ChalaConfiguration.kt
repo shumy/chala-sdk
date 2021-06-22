@@ -39,6 +39,7 @@ class ChalaConfiguration private constructor(
         .filterByAnnotation(Command::class)
         .map { it.convertToChalaRequest() }
 
+      // TODO: optimize size of keys (it.qualifiedName). This is sent in the package.
       val serializers = requestClasses
         .associate { it.qualifiedName!! to it.serializer() }
 

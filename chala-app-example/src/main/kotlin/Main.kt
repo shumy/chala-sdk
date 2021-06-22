@@ -13,8 +13,8 @@ class TestChain(private val txPerBlock: Int) : ChalaChainSpi {
   override lateinit var onStartBlock: (Long) -> Unit
   override lateinit var onValidateTx: (ByteArray) -> Boolean
   override lateinit var onCommitTx: () -> Unit
-  override lateinit var onCommitBlock: (Long) -> ByteArray
-  override lateinit var onRollbackBlock: (Long, Throwable) -> Unit
+  override lateinit var onCommitBlock: () -> ByteArray
+  override lateinit var onRollbackBlock: (Throwable) -> Unit
 
   private var bNumber = 0L
   private val block = ConcurrentLinkedQueue<ByteArray>()
@@ -40,10 +40,10 @@ class TestChain(private val txPerBlock: Int) : ChalaChainSpi {
       }
 
       println("  Chain.onCommitBlock")
-      onCommitBlock(bNumber)
+      onCommitBlock()
     } catch (ex: Throwable) {
       println("  Chain.onRollbackBlock")
-      onRollbackBlock(bNumber, ex)
+      onRollbackBlock(ex)
     } finally {
       block.clear()
     }
@@ -67,6 +67,11 @@ class TestRequest(override val data: TestData) : ChalaRequest {
 
   override fun commit() {
     println("      TestRequest.commit: $data")
+    Student().apply {
+      firstName = data.name
+      email = "${data.name}@gmail.com"
+      save()
+    }
   }
 }
 

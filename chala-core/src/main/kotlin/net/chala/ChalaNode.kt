@@ -68,6 +68,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
   // exclusive chain operations ----------------------------------------------
   // -------------------------------------------------------------------------
   private val pendingTx = mutableListOf<ByteArray>()
+  private var height: Long = 0
   private lateinit var state: ByteArray
   private lateinit var request: ChalaRequest
   private lateinit var data: Any
@@ -96,8 +97,9 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     context.set(RunContext.CLIENT)
   }
 
-  private fun startBlock(height: Long) {
+  private fun startBlock(bHeight: Long) {
     locker.lock()
+    height = bHeight
     context.set(RunContext.CHAIN)
     store.getSession().beginTransaction()
   }
@@ -116,7 +118,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
       request = requestConstructor.call(data)
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
-      LOGGER.warn("Failed to decode transaction. Ignore and proceed to the next one.")
+      LOGGER.warn("Failed to decode transaction: ${ex.message}")
       return false
     }
 
@@ -126,7 +128,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
       request.check()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
-      LOGGER.warn("Failed to check transaction. Ignore and proceed to the next one.")
+      LOGGER.warn("Failed to check transaction: ${ex.message}")
       return false
     }
 
@@ -136,7 +138,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
       request.validate()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
-      LOGGER.warn("Failed to validate transaction. Ignore and proceed to the next one.")
+      LOGGER.warn("Failed to validate transaction: ${ex.message}")
       return false
     }
 
@@ -152,11 +154,11 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     } catch (ex: Throwable) {
       // Can contain pending changes in the hibernate session. Abort the entire block
       // Possible exception at this phase could be related to DB connectivity
-      throw ChalaException("Unable to commit transaction due to: ${ex.message}.")
+      throw ChalaException("Unable to commit transaction (aborting block): ${ex.message}")
     }
   }
 
-  private fun commitBlock(height: Long): ByteArray {
+  private fun commitBlock(): ByteArray {
     val digester = MessageDigest.getInstance("SHA-256")
     val newState = digester.digest(pendingTx.reduce { acc, bytes -> acc + bytes })
 
@@ -164,11 +166,12 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
       val appState = AppState(height, newState)
       it.persist(appState)
       it.transaction.commit()
-
-      state = newState
+      it.close()
       LOGGER.info("Block committed for $appState")
 
-      it.close()
+      // prepare/clear context for the next block
+      state = newState
+      pendingTx.clear()
       store.chainSession.set(null)
     }
 
@@ -178,15 +181,17 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     return state
   }
 
-  private fun rollbackBlock(height: Long, ex: Throwable) {
+  private fun rollbackBlock(ex: Throwable) {
+    LOGGER.error("Forced block rollback at height: $height with reason ${ex.message}")
     store.getSession().let {
       try {
-        LOGGER.error("Forced block rollback at height: $height with reason ${ex.message}")
         it.transaction.rollback()
+        it.close()
       } catch (ex: Throwable) {
         // ignore this! Nothing we can do here
       } finally {
-        it.close()
+        // prepare/clear context for the next block
+        pendingTx.clear()
         store.chainSession.set(null)
 
         context.set(RunContext.CLIENT)
