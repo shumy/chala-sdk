@@ -4,8 +4,10 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
+import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.javalin.Javalin
+import io.javalin.http.BadRequestResponse
 import net.chala.ChalaException
 import net.chala.ChalaNode
 import net.chala.conf.ChalaConfiguration
@@ -28,13 +30,8 @@ private val mapper = jacksonObjectMapper()
 internal class ChalaServer(config: ChalaConfiguration) {
   init {
     Javalin.create().start(7000).apply {
+      setupErrorHandlers()
       LOGGER.info("Setup query/cmd endpoints")
-
-      error(400) {
-        val javalinError = mapper.readValue(it.resultString(), JavalinError::class.java)
-        val error = RequestError(javalinError.status, javalinError.title)
-        it.result(mapper.writeValueAsString(error))
-      }
 
       get("/status") { it.result("Chala REST server is UP") }
       LOGGER.info("GET /status")
@@ -64,6 +61,21 @@ internal class ChalaServer(config: ChalaConfiguration) {
         setupPost(endpointName, cmdInfo.value, path)
       }
     }
+  }
+}
+
+private fun Javalin.setupErrorHandlers() {
+  exception(MissingKotlinParameterException::class.java) { ex, ctx ->
+    val fieldType = (ex.parameter.type.classifier as KClass<*>).simpleName
+    val error = RequestError(400, "Missing mandatory field (${ex.parameter.name}: $fieldType)")
+    ctx.status(400)
+    ctx.result(mapper.writeValueAsString(error))
+  }
+
+  exception(BadRequestResponse::class.java) { ex, ctx ->
+    val error = RequestError(ex.status, ex.message)
+    ctx.status(ex.status)
+    ctx.result(mapper.writeValueAsString(error))
   }
 }
 
@@ -98,6 +110,8 @@ private fun Javalin.setupPost(endpointName: String, cmdInfo: CommandInfo, path: 
     ChalaNode.node.startClientRequest()
 
     val data = mapper.readValue(ctx.body(), dataType)
+    // TODO: check javax.validation annotations?
+
     val command = cmdInfo.constructor.call(data)
 
     ChalaNode.submit(command)
