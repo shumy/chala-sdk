@@ -177,9 +177,9 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       it.persist(newAppState)
       it.transaction.commit()
       it.close()
-      LOGGER.info("Block committed for $newAppState")
     }
 
+    LOGGER.info("Block committed for $newAppState")
     pendingTx.forEach { tx ->
       server.publish(CommittedResponse(shaFingerprint(tx)))
     }
@@ -196,16 +196,16 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
   }
 
   private fun rollbackBlock(ex: Throwable) = store.getSession().let {
-    pendingTx.forEach { tx ->
-      reportTxError(tx, 500, "Forced block rollback at height $height with reason: ${ex.message}")
-    }
-
     try {
       it.transaction.rollback()
       it.close()
     } catch (ex: Throwable) {
       // ignore this! Nothing we can do here
     } finally {
+      pendingTx.forEach { tx ->
+        reportTxError(tx, 500, "Forced block rollback at height $height with reason: ${ex.message}")
+      }
+
       // prepare/clear context
       height -= 1
       pendingTx.clear()
