@@ -23,7 +23,6 @@ open class ChalaRepository<E> {
   }
 }
 
-
 interface ChalaCommand {
   val data: Any
 

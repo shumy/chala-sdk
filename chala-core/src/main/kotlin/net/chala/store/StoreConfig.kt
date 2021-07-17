@@ -1,6 +1,5 @@
 package net.chala.store
 
-import net.chala.model.AppState
 import org.hibernate.cfg.Configuration
 import kotlin.reflect.KClass
 
@@ -35,7 +34,6 @@ class H2InMemoryConfig(entities: List<KClass<*>>) : StoreConfig(
     setProperty("hibernate.hbm2ddl.auto", "update")
     setProperty("hibernate.show_sql", "true")
 
-    addAnnotatedClass(AppState::class.java)
     entities.forEach { addAnnotatedClass(it.java) }
   }
 )

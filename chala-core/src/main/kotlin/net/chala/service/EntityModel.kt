@@ -1,24 +1,26 @@
-package net.chala.model
+package net.chala.service
 
-import kotlinx.serialization.Serializable
+import net.chala.ChalaRecord
+import net.chala.ChalaRepository
+import java.time.LocalDateTime
 import java.util.*
 import javax.persistence.Column
 import javax.persistence.Entity
 import javax.persistence.Id
+import javax.persistence.Table
 
-@Entity
+@Entity @Table(name = "chala_state")
 internal class AppState (
   @Id
   val height: Long,
 
   @Column(nullable = false)
-  val state: ByteArray
-) {
+  val state: ByteArray,
+): ChalaRecord() {
+  companion object : ChalaRepository<AppState>()
+
   override fun toString(): String {
     val b64State = String(Base64.getEncoder().encode(state))
     return "AppState($height, $b64State)"
   }
 }
-
-@Serializable
-open class DataPacket(val type: String, val data: ByteArray)

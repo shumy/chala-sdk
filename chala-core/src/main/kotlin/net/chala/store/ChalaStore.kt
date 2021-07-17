@@ -1,8 +1,8 @@
 package net.chala.store
 
 import net.chala.Bug
-import net.chala.ChalaNode
 import net.chala.RunContext
+import net.chala.chainContext
 import org.hibernate.Session
 import org.hibernate.SessionFactory
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder
@@ -21,7 +21,7 @@ internal class ChalaStore(config: StoreConfig) {
   internal val chainSession = AtomicReference<Session>()
 
   internal fun save(entity: Any) {
-    val ctx = ChalaNode.node.context.get()
+    val ctx = chainContext.get()
     if (ctx == RunContext.CLIENT || ctx == RunContext.CHECK || ctx == RunContext.VALIDATE)
       Bug.SAVE.report()
 
@@ -29,7 +29,7 @@ internal class ChalaStore(config: StoreConfig) {
   }
 
   internal fun <E> find(type: Class<E>, query: String, vararg params: Any): Sequence<E> {
-    if (ChalaNode.node.context.get() == RunContext.CHECK)
+    if (chainContext.get() == RunContext.CHECK)
       Bug.CHECK.report()
 
     val q = getSession().createQuery(query, type)
@@ -38,7 +38,7 @@ internal class ChalaStore(config: StoreConfig) {
   }
 
   internal fun <E> findById(type: Class<E>, id: Any): E? {
-    if (ChalaNode.node.context.get() == RunContext.CHECK)
+    if (chainContext.get() == RunContext.CHECK)
       Bug.CHECK.report()
 
     return getSession().find(type, id)
@@ -48,10 +48,10 @@ internal class ChalaStore(config: StoreConfig) {
   // JPA session management --------------------------------------------------
   // -------------------------------------------------------------------------
   internal fun getSession(): Session {
-    if (ChalaNode.node.context.get() == RunContext.CHECK)
+    if (chainContext.get() == RunContext.CHECK)
       Bug.CHECK.report()
 
-    if (ChalaNode.node.context.get() == RunContext.CLIENT)
+    if (chainContext.get() == RunContext.CLIENT)
       return threadSessions.get() ?: run {
         val ss = sf.openSession()
         threadSessions.set(ss)
@@ -64,19 +64,4 @@ internal class ChalaStore(config: StoreConfig) {
       ss
     }
   }
-
-  /*internal fun resetSession(): Unit? {
-    if (ChalaNode.node.context.get() == RunContext.CLIENT)
-      return threadSessions.get()?.let {
-        it.transaction?.rollback()
-        it.close()
-        threadSessions.set(null)
-      }
-
-    return chainSession.get()?.let {
-      it.transaction?.rollback()
-      it.close()
-      chainSession.set(null)
-    }
-  }*/
 }

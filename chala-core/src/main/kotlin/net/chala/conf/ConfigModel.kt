@@ -7,20 +7,25 @@ import net.chala.annotation.Endpoint
 import net.chala.annotation.Query
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
+import kotlin.reflect.KParameter
 
 class CommandInfo(
-  val command: Command,
+  val path: String,
+  val document: String,
+  val ref: String,
   val constructor: KFunction<ChalaCommand>,
   val serializer: KSerializer<Any>
 )
 
 class QueryInfo(
-  val query: Query,
+  val document: String,
   val constructor: KFunction<Any>,
   val endpoints: List<EndpointInfo>
 )
 
 class EndpointInfo(
-  val endpoint: Endpoint,
-  val method: KFunction<*>
+  val path: String,
+  val ref: String,
+  val method: KFunction<*>,
+  val params: List<KParameter>
 )

@@ -1,21 +1,25 @@
 package net.chala
 
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
 import net.chala.annotation.Command
 import net.chala.conf.ChalaConfiguration
-import net.chala.model.AppState
-import net.chala.model.DataPacket
 import net.chala.server.ChalaServer
+import net.chala.service.AppState
 import net.chala.store.ChalaStore
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 private val LOGGER = LoggerFactory.getLogger(ChalaNode::class.java)
+
+@Serializable
+internal open class DataPacket(val type: String, val data: ByteArray)
 
 class ChalaNode private constructor(internal val store: ChalaStore, internal val server: ChalaServer, val config: ChalaConfiguration) {
   companion object {
@@ -37,19 +41,19 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
 
       NODE = ChalaNode(store, server, config)
       node.loadState()
-      node.context.set(RunContext.CLIENT)
+      chainContext.set(RunContext.CLIENT)
       LOGGER.info("Chala node is UP.")
     }
 
     @OptIn(ExperimentalSerializationApi::class)
     fun submit(command: ChalaCommand) {
-      if (node.context.get() != RunContext.CLIENT)
+      if (chainContext.get() != RunContext.CLIENT)
         Bug.SUBMIT.report()
 
       // disable database access with CHECK context
-      node.context.set(RunContext.CHECK)
+      chainContext.set(RunContext.CHECK)
         command.check()
-      node.context.set(RunContext.CLIENT)
+      chainContext.set(RunContext.CLIENT)
 
       val requestName = command.javaClass.canonicalName
       val commandInfo = node.config.commands[requestName] ?:
@@ -75,7 +79,6 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
   private lateinit var data: Any
 
   private val locker = ReentrantLock()
-  internal val context = ThreadLocal<RunContext>()
 
   init {
     config.chain.onStartBlock = this::startBlock
@@ -84,6 +87,8 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     config.chain.onCommitBlock = this::commitBlock
     config.chain.onRollbackBlock = this::rollbackBlock
   }
+
+  internal fun getState() = locker.withLock { AppState(height, state) }
 
   internal fun loadState() {
     store.getSession().let {
@@ -94,14 +99,10 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     }
   }
 
-  fun startClientRequest() {
-    context.set(RunContext.CLIENT)
-  }
-
   private fun startBlock(bHeight: Long) {
     locker.lock()
     height = bHeight
-    context.set(RunContext.CHAIN)
+    chainContext.set(RunContext.CHAIN)
     store.getSession().beginTransaction()
   }
 
@@ -123,7 +124,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
 
     try {
       // disable database access with CHECK context
-      context.set(RunContext.CHECK)
+      chainContext.set(RunContext.CHECK)
       command.check()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
@@ -133,7 +134,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
 
     try {
       // disable database changes with VALIDATE context
-      context.set(RunContext.VALIDATE)
+      chainContext.set(RunContext.VALIDATE)
       command.validate()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
@@ -148,7 +149,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
   private fun commitTx() {
     try {
       // enable database changes with COMMIT context
-      context.set(RunContext.COMMIT)
+      chainContext.set(RunContext.COMMIT)
       command.commit()
     } catch (ex: Throwable) {
       // Can contain pending changes in the hibernate session. Abort the entire block
@@ -158,11 +159,13 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
   }
 
   private fun commitBlock(): ByteArray {
-    val digester = MessageDigest.getInstance("SHA-256")
-    val newState = digester.digest(pendingTx.reduce { acc, bytes -> acc + bytes })
+    val newState = if (pendingTx.isNotEmpty()) {
+      val digester = MessageDigest.getInstance("SHA-256")
+      digester.digest(pendingTx.reduce { acc, bytes -> acc + bytes })
+    } else state
 
+    val appState = AppState(height, newState)
     store.getSession().let {
-      val appState = AppState(height, newState)
       it.persist(appState)
       it.transaction.commit()
       it.close()
@@ -174,7 +177,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       store.chainSession.set(null)
     }
 
-    context.set(RunContext.CLIENT)
+    chainContext.set(RunContext.CLIENT)
     locker.unlock()
 
     return state
@@ -189,17 +192,14 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       } catch (ex: Throwable) {
         // ignore this! Nothing we can do here
       } finally {
-        // prepare/clear context for the next block
+        // prepare/clear context
+        height -= 1
         pendingTx.clear()
         store.chainSession.set(null)
 
-        context.set(RunContext.CLIENT)
+        chainContext.set(RunContext.CLIENT)
         locker.unlock()
       }
     }
   }
-}
-
-enum class RunContext {
-  CLIENT, CHAIN, CHECK, VALIDATE, COMMIT
 }
