@@ -1,4 +1,4 @@
-package net.chala.annotation
+package net.chala.api
 
 @MustBeDocumented
 @Target(AnnotationTarget.CLASS)

@@ -2,10 +2,6 @@ package net.chala.conf
 
 import kotlinx.serialization.KSerializer
 import net.chala.ChalaCommand
-import net.chala.annotation.Command
-import net.chala.annotation.Endpoint
-import net.chala.annotation.Query
-import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 

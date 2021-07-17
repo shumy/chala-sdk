@@ -1,9 +1,11 @@
 package net.chala.conf
 
 import net.chala.ChalaConfigException
-import net.chala.annotation.Command
-import net.chala.annotation.Query
+import net.chala.api.Command
+import net.chala.api.Query
 import net.chala.api.ChalaChainSpi
+import net.chala.filterClassByAnnotation
+import net.chala.getClasses
 import net.chala.service.AppState
 import net.chala.service.StatusQuery
 import net.chala.store.StoreConfig
@@ -28,11 +30,13 @@ class ChalaConfiguration private constructor(
       val jpaClasses = allClasses
         .filterClassByAnnotation(Entity::class)
         .plus(AppState::class)
+        .onEach { LOGGER.info("Found JPA entity ${it.qualifiedName}") }
 
       // TODO: optimize size of keys (it.qualifiedName). This is sent in the package.
       LOGGER.info("Scanning for classes with @${Command::class.simpleName}:")
       val commands = allClasses
         .filterClassByAnnotation(Command::class)
+        .onEach { LOGGER.info("Found command class ${it.qualifiedName}") }
         .map { it.convertToChalaCommand() }
         .associate { it.qualifiedName!! to it.mapToCommandInfo() }
 
@@ -40,6 +44,7 @@ class ChalaConfiguration private constructor(
       val queries = allClasses
         .filterClassByAnnotation(Query::class)
         .plus(StatusQuery::class)
+        .onEach { LOGGER.info("Found query class ${it.qualifiedName}") }
         .map { it.mapToQueryInfo() }
 
       // check for overridden paths

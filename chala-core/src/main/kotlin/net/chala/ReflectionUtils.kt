@@ -1,21 +1,19 @@
-package net.chala.conf
+package net.chala
 
-import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.jvm.javaMethod
 
-private val LOGGER = LoggerFactory.getLogger(ChalaConfiguration::class.java)
-
 internal fun List<Class<*>>.filterClassByAnnotation(annotation: KClass<out Annotation>) =
-  this.filter { it.isAnnotationPresent(annotation.java) }
+  filter { it.isAnnotationPresent(annotation.java) }
     .map { it.kotlin }
-    .onEach { LOGGER.info("Found class ${it.qualifiedName}") }
 
 internal fun Collection<KFunction<*>>.filterMethodByAnnotation(annotation: KClass<out Annotation>) =
-  this.filter { it.javaMethod!!.isAnnotationPresent(annotation.java) }
-    .onEach { LOGGER.info("Found method ${it.name}") }
+  filter { it.javaMethod!!.isAnnotationPresent(annotation.java) }
+
+internal fun KClass<*>.defaultConstructor(): KFunction<Any> =
+  constructors.first { it.name == "<init>" }
 
 internal fun getClasses(packageName: String): Sequence<Class<*>> {
   val classLoader = Thread.currentThread().contextClassLoader!!

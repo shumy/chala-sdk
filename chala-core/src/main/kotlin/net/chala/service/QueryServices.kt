@@ -1,8 +1,8 @@
 package net.chala.service
 
 import net.chala.ChalaNode
-import net.chala.annotation.Endpoint
-import net.chala.annotation.Query
+import net.chala.api.Endpoint
+import net.chala.api.Query
 import java.util.*
 
 @Query("/chain", document = "chain.yaml")

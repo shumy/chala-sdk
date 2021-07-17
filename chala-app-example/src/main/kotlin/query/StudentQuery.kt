@@ -1,7 +1,7 @@
 package net.chala.app.example.query
 
-import net.chala.annotation.Endpoint
-import net.chala.annotation.Query
+import net.chala.api.Endpoint
+import net.chala.api.Query
 import net.chala.app.example.Student
 
 @Query("/student", document = "student.yaml")

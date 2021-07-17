@@ -4,7 +4,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import net.chala.ChalaCommand
 import net.chala.ChalaConfigException
-import net.chala.annotation.Command
+import net.chala.api.Command
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KType

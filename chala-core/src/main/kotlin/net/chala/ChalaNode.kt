@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
-import net.chala.annotation.Command
+import net.chala.api.Command
 import net.chala.conf.ChalaConfiguration
 import net.chala.server.ChalaServer
 import net.chala.service.AppState

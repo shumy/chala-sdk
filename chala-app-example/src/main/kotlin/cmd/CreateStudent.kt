@@ -2,7 +2,7 @@ package net.chala.app.example.cmd
 
 import kotlinx.serialization.Serializable
 import net.chala.ChalaCommand
-import net.chala.annotation.Command
+import net.chala.api.Command
 import net.chala.app.example.Student
 
 @Serializable

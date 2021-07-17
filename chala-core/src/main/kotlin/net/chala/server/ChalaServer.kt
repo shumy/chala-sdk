@@ -3,6 +3,7 @@ package net.chala.server
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.exc.InvalidFormatException
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
 import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -15,6 +16,7 @@ import net.chala.conf.ChalaConfiguration
 import net.chala.conf.CommandInfo
 import net.chala.conf.EndpointInfo
 import net.chala.conf.QueryInfo
+import net.chala.defaultConstructor
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
@@ -50,9 +52,22 @@ internal class ChalaServer(config: ChalaConfiguration) {
 }
 
 private fun Javalin.setupErrorHandlers() {
+  exception(InvalidFormatException::class.java) { ex, ctx ->
+    val message = ex.path[0]?.let { ref ->
+      val fieldName = ref.fieldName
+      val params = (ref.from as Class<*>).kotlin.defaultConstructor().parameters.first { it.name == fieldName }
+      val fieldType = (params.type.classifier as KClass<*>).simpleName
+      "Invalid type for field: ($fieldName: $fieldType)"
+    }
+
+    val error = RequestError(400, message)
+    ctx.status(400)
+    ctx.result(mapper.writeValueAsString(error))
+  }
+
   exception(MissingKotlinParameterException::class.java) { ex, ctx ->
     val fieldType = (ex.parameter.type.classifier as KClass<*>).simpleName
-    val error = RequestError(400, "Missing mandatory field (${ex.parameter.name}: $fieldType)")
+    val error = RequestError(400, "Missing mandatory field: (${ex.parameter.name}: $fieldType)")
     ctx.status(400)
     ctx.result(mapper.writeValueAsString(error))
   }
