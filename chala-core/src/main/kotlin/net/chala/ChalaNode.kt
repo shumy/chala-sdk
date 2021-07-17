@@ -7,7 +7,9 @@ import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
 import net.chala.api.Command
 import net.chala.conf.ChalaConfiguration
+import net.chala.server.ChainErrorResponse
 import net.chala.server.ChalaServer
+import net.chala.server.CommittedResponse
 import net.chala.service.AppState
 import net.chala.store.ChalaStore
 import net.chala.utils.shaDigest
@@ -125,7 +127,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       command = commandInfo.constructor.call(data)
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
-      LOGGER.warn("Failed to decode transaction: ${ex.message}")
+      reportTxError(tx, 400, "Failed to decode cmd: ${ex.message}")
       return false
     }
 
@@ -135,7 +137,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       command.check()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
-      LOGGER.warn("Failed to check transaction: ${ex.message}")
+      reportTxError(tx, 400, "Failed to check cmd: ${ex.message}")
       return false
     }
 
@@ -145,7 +147,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       command.validate()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
-      LOGGER.warn("Failed to validate transaction: ${ex.message}")
+      reportTxError(tx, 400, "Failed to validate cmd: ${ex.message}")
       return false
     }
 
@@ -176,12 +178,16 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       it.transaction.commit()
       it.close()
       LOGGER.info("Block committed for $newAppState")
-
-      // prepare/clear context for the next block
-      appState = newAppState
-      pendingTx.clear()
-      store.chainSession.set(null)
     }
+
+    pendingTx.forEach { tx ->
+      server.publish(CommittedResponse(shaFingerprint(tx)))
+    }
+
+    // prepare/clear context for the next block
+    appState = newAppState
+    pendingTx.clear()
+    store.chainSession.set(null)
 
     chainContext.set(RunContext.CLIENT)
     locker.unlock()
@@ -189,23 +195,29 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     return appState.state
   }
 
-  private fun rollbackBlock(ex: Throwable) {
-    LOGGER.error("Forced block rollback at height: $height with reason ${ex.message}")
-    store.getSession().let {
-      try {
-        it.transaction.rollback()
-        it.close()
-      } catch (ex: Throwable) {
-        // ignore this! Nothing we can do here
-      } finally {
-        // prepare/clear context
-        height -= 1
-        pendingTx.clear()
-        store.chainSession.set(null)
-
-        chainContext.set(RunContext.CLIENT)
-        locker.unlock()
-      }
+  private fun rollbackBlock(ex: Throwable) = store.getSession().let {
+    pendingTx.forEach { tx ->
+      reportTxError(tx, 500, "Forced block rollback at height $height with reason: ${ex.message}")
     }
+
+    try {
+      it.transaction.rollback()
+      it.close()
+    } catch (ex: Throwable) {
+      // ignore this! Nothing we can do here
+    } finally {
+      // prepare/clear context
+      height -= 1
+      pendingTx.clear()
+      store.chainSession.set(null)
+
+      chainContext.set(RunContext.CLIENT)
+      locker.unlock()
+    }
+  }
+
+  private fun reportTxError(tx: ByteArray, status: Int, cause: String) {
+    LOGGER.warn(cause)
+    server.publish(ChainErrorResponse(shaFingerprint(tx), status, cause))
   }
 }
