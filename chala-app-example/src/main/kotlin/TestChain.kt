@@ -15,17 +15,15 @@ class TestChain(private val txPerBlock: Int) : ChalaChainSpi {
   override lateinit var onRollbackBlock: (Throwable) -> Unit
 
   private val bNumber = AtomicLong(0L)
-  private val block = ConcurrentLinkedQueue<ByteArray>()
+  private val txPool = ConcurrentLinkedQueue<ByteArray>()
 
-  private val initialDelay = 0L
-  private val interval = 3000L
+  private val interval = 2000L
   private val scheduler = Executors.newScheduledThreadPool(1)
 
   private val task = Runnable {
-    if (block.size == 0) {
-      println("  Chain, no tx to process: ${LocalDateTime.now()}")
+    println("Check txPool: ${txPool.size} - ${LocalDateTime.now()}")
+    if (txPool.size != txPerBlock)
       return@Runnable
-    }
 
     val number = bNumber.addAndGet(1)
     println("  Chain process block $number")
@@ -34,7 +32,7 @@ class TestChain(private val txPerBlock: Int) : ChalaChainSpi {
       println("  Chain.onStartBlock")
       onStartBlock(number)
 
-      block.forEach {
+      txPool.forEach {
         println("    Chain.onValidateTx")
         if (onValidateTx(it)) {
           println("    Chain.onCommitTx")
@@ -48,16 +46,16 @@ class TestChain(private val txPerBlock: Int) : ChalaChainSpi {
       println("  Chain.onRollbackBlock")
       onRollbackBlock(ex)
     } finally {
-      block.clear()
+      txPool.clear()
     }
   }
 
   init {
-    scheduler.scheduleWithFixedDelay(task, initialDelay, interval, TimeUnit.MILLISECONDS)
+    scheduler.scheduleWithFixedDelay(task, 0L, interval, TimeUnit.MILLISECONDS)
   }
 
   override fun submmit(tx: ByteArray) {
     println("Chain.submmit: ${tx.decodeToString()}")
-    block.add(tx)
+    txPool.add(tx)
   }
 }

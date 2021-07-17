@@ -6,7 +6,7 @@ import net.chala.store.H2InMemoryConfig
 
 fun main() {
   val conf = ChalaConfiguration.scan("net.chala.app.example")
-  conf.chain = TestChain(4)
+  conf.chain = TestChain(2)
   conf.storeConf = H2InMemoryConfig(conf.jpaClasses)
 
   ChalaNode.setup(conf)

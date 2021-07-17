@@ -1,4 +1,4 @@
-package net.chala
+package net.chala.utils
 
 import java.io.File
 import kotlin.reflect.KClass

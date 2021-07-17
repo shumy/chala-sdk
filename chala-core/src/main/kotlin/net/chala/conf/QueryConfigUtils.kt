@@ -3,16 +3,13 @@ package net.chala.conf
 import net.chala.ChalaConfigException
 import net.chala.api.Endpoint
 import net.chala.api.Query
-import net.chala.defaultConstructor
-import net.chala.filterMethodByAnnotation
-import org.slf4j.LoggerFactory
+import net.chala.utils.defaultConstructor
+import net.chala.utils.filterMethodByAnnotation
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.findAnnotation
 import kotlin.reflect.full.memberFunctions
-
-private val LOGGER = LoggerFactory.getLogger(ChalaConfiguration::class.java)
 
 internal fun KClass<*>.mapToQueryInfo(): QueryInfo {
   val query: Query = findAnnotation()!!
@@ -31,7 +28,6 @@ internal fun KClass<*>.mapToQueryInfo(): QueryInfo {
 private fun KClass<*>.queryEndpoints(queryPath: String, classRef: String): List<EndpointInfo> =
   memberFunctions
     .filterMethodByAnnotation(Endpoint::class)
-    .onEach { LOGGER.info("Found endpoint method ${it.name}") }
     .map {
       val endpoint: Endpoint = it.findAnnotation()!!
       val methodRef = "$classRef.${it.name}"

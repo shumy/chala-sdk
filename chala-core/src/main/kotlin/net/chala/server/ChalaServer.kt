@@ -16,8 +16,9 @@ import net.chala.conf.ChalaConfiguration
 import net.chala.conf.CommandInfo
 import net.chala.conf.EndpointInfo
 import net.chala.conf.QueryInfo
-import net.chala.defaultConstructor
+import net.chala.utils.defaultConstructor
 import org.slf4j.LoggerFactory
+import java.time.LocalDateTime
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
 
@@ -37,14 +38,15 @@ internal class ChalaServer(config: ChalaConfiguration) {
       get("/") { it.result("Hello from ChalaServer!") }
 
       setupErrorHandlers()
-      LOGGER.info("Mapping query/cmd endpoints")
+      setupChannel()
 
+      LOGGER.info("Mapping query/cmd endpoints")
       for (queryInfo in config.queries)
         for (endpointInfo in queryInfo.endpoints)
-          setupGet(queryInfo, endpointInfo, "/query" + endpointInfo.path, endpointInfo.params)
+          setupGet(queryInfo, endpointInfo, endpointInfo.path, endpointInfo.params)
 
       for (cmdInfo in config.commands)
-        setupPost(cmdInfo.value, "/cmd" + cmdInfo.value.path)
+        setupPost(cmdInfo.value, cmdInfo.value.path)
 
       start(7000)
     }
@@ -112,9 +114,23 @@ private fun Javalin.setupPost(cmdInfo: CommandInfo, path: String) {
     val data = mapper.readValue(ctx.body(), dataType)
     val command = cmdInfo.constructor.call(data)
 
-    ChalaNode.submit(command)
+    val id = ChalaNode.submit(command)
     ctx.status(202)
+    ctx.result(mapper.writeValueAsString(CmdSubmitted(id)))
   }
 
   LOGGER.info("POST {} -> {}", path, cmdInfo.ref)
+}
+
+private fun Javalin.setupChannel() {
+  ws("/channel") { wsc ->
+    wsc.onConnect { println("Connect") }
+    wsc.onMessage { println(it.message()) }
+    wsc.onClose { println("Closed") }
+    wsc.onError { println("Error") }
+  }
+}
+
+data class CmdSubmitted(val id: String) {
+  val timestamp = LocalDateTime.now()
 }

@@ -4,7 +4,7 @@ import net.chala.api.Endpoint
 import net.chala.api.Query
 import net.chala.app.example.Student
 
-@Query("/student", document = "student.yaml")
+@Query("/students", document = "students.yaml")
 class StudentQuery {
   @Endpoint
   fun list() = Student.findAll()

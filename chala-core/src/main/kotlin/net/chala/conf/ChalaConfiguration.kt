@@ -1,14 +1,14 @@
 package net.chala.conf
 
 import net.chala.ChalaConfigException
+import net.chala.api.ChalaChainSpi
 import net.chala.api.Command
 import net.chala.api.Query
-import net.chala.api.ChalaChainSpi
-import net.chala.filterClassByAnnotation
-import net.chala.getClasses
 import net.chala.service.AppState
-import net.chala.service.StatusQuery
+import net.chala.service.ChainQuery
 import net.chala.store.StoreConfig
+import net.chala.utils.filterClassByAnnotation
+import net.chala.utils.getClasses
 import org.slf4j.LoggerFactory
 import javax.persistence.Entity
 import kotlin.reflect.KClass
@@ -43,7 +43,7 @@ class ChalaConfiguration private constructor(
       LOGGER.info("Scanning for classes with @${Query::class.simpleName}:")
       val queries = allClasses
         .filterClassByAnnotation(Query::class)
-        .plus(StatusQuery::class)
+        .plus(ChainQuery::class)
         .onEach { LOGGER.info("Found query class ${it.qualifiedName}") }
         .map { it.mapToQueryInfo() }
 

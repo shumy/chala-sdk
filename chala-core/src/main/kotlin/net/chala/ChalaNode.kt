@@ -10,8 +10,9 @@ import net.chala.conf.ChalaConfiguration
 import net.chala.server.ChalaServer
 import net.chala.service.AppState
 import net.chala.store.ChalaStore
+import net.chala.utils.shaDigest
+import net.chala.utils.shaFingerprint
 import org.slf4j.LoggerFactory
-import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -46,7 +47,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     }
 
     @OptIn(ExperimentalSerializationApi::class)
-    fun submit(command: ChalaCommand) {
+    fun submit(command: ChalaCommand): String {
       if (chainContext.get() != RunContext.CLIENT)
         Bug.SUBMIT.report()
 
@@ -66,15 +67,17 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       val tx = packet
 
       node.config.chain.submmit(tx)
+      return shaFingerprint(tx)
     }
   }
 
   // -------------------------------------------------------------------------
   // exclusive chain operations ----------------------------------------------
   // -------------------------------------------------------------------------
-  private val pendingTx = mutableListOf<ByteArray>()
   private var height: Long = 0
-  private lateinit var state: ByteArray
+  private lateinit var appState: AppState
+
+  private val pendingTx = mutableListOf<ByteArray>()
   private lateinit var command: ChalaCommand
   private lateinit var data: Any
 
@@ -88,14 +91,18 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     config.chain.onRollbackBlock = this::rollbackBlock
   }
 
-  internal fun getState() = locker.withLock { AppState(height, state) }
+  internal fun getState() = locker.withLock { appState }
 
   internal fun loadState() {
     store.getSession().let {
       val query = it.createQuery("from AppState order by height desc")
       query.maxResults = 1
-      val appState = query.uniqueResult() as AppState?
-      state = appState?.state ?: "base-line:${UUID.randomUUID()}".toByteArray()
+
+      val dbAppState = query.uniqueResult() as AppState?
+      appState = dbAppState ?: run {
+        val initialState = dbAppState?.state ?: "init-state:${UUID.randomUUID()}".toByteArray()
+        AppState(0L, initialState, 0)
+      }
     }
   }
 
@@ -160,19 +167,18 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
 
   private fun commitBlock(): ByteArray {
     val newState = if (pendingTx.isNotEmpty()) {
-      val digester = MessageDigest.getInstance("SHA-256")
-      digester.digest(pendingTx.reduce { acc, bytes -> acc + bytes })
-    } else state
+      shaDigest(pendingTx.reduce { acc, bytes -> acc + bytes })
+    } else appState.state
 
-    val appState = AppState(height, newState)
+    val newAppState = AppState(height, newState, pendingTx.size)
     store.getSession().let {
-      it.persist(appState)
+      it.persist(newAppState)
       it.transaction.commit()
       it.close()
-      LOGGER.info("Block committed for $appState")
+      LOGGER.info("Block committed for $newAppState")
 
       // prepare/clear context for the next block
-      state = newState
+      appState = newAppState
       pendingTx.clear()
       store.chainSession.set(null)
     }
@@ -180,7 +186,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     chainContext.set(RunContext.CLIENT)
     locker.unlock()
 
-    return state
+    return appState.state
   }
 
   private fun rollbackBlock(ex: Throwable) {
