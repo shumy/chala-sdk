@@ -1,18 +1,18 @@
 package net.chala
 
-import kotlinx.serialization.KSerializer
-import kotlin.reflect.full.companionObjectInstance
-
 open class ChalaRecord {
   fun save() = ChalaNode.node.store.save(this)
 }
 
 open class ChalaRepository<E> {
-  fun findAll(query: String, vararg params: Any): Sequence<E>
+  fun findAll(): Sequence<E>
+    = ChalaNode.node.store.find(type, "from ${type.simpleName}")
+
+  fun findMany(query: String, vararg params: Any): Sequence<E>
     = ChalaNode.node.store.find(type, query, params)
 
   fun findOne(query: String, vararg params: Any): E?
-    = findAll(query, params).first()
+    = findMany(query, params).first()
 
   fun findById(id: Long): E?
     = ChalaNode.node.store.findById(type, id)
@@ -24,7 +24,7 @@ open class ChalaRepository<E> {
 }
 
 
-interface ChalaRequest {
+interface ChalaCommand {
   val data: Any
 
   fun check(): Unit

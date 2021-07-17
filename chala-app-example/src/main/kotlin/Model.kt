@@ -8,16 +8,11 @@ import javax.persistence.GenerationType
 import javax.persistence.Id
 
 @Entity
-class Student: ChalaRecord() {
-  companion object : ChalaRepository<Student>()
-
+class Student(
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
-  var id: Long? = null
-
-  lateinit var firstName: String
-
-  lateinit var lastName: String
-
-  lateinit var email: String
-}
+  val id: Long? = null,
+  val firstName: String,
+  val lastName: String,
+  val email: String
+): ChalaRecord() { companion object : ChalaRepository<Student>() }

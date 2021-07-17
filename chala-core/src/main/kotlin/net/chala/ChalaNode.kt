@@ -5,62 +5,63 @@ import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
 import net.chala.annotation.Command
-import net.chala.api.ChalaChainSpi
 import net.chala.conf.ChalaConfiguration
 import net.chala.model.AppState
 import net.chala.model.DataPacket
+import net.chala.server.ChalaServer
 import net.chala.store.ChalaStore
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
 
-
 private val LOGGER = LoggerFactory.getLogger(ChalaNode::class.java)
 
-class ChalaNode private constructor(internal val store: ChalaStore, val chain: ChalaChainSpi, val config: ChalaConfiguration) {
+class ChalaNode private constructor(internal val store: ChalaStore, internal val server: ChalaServer, val config: ChalaConfiguration) {
   companion object {
     private var NODE: ChalaNode? = null
     val node: ChalaNode by lazy {
-      NODE ?: throw ChalaException("Uninitialized ChalaNode! Please run ChalaNode.setup(..)")
+      NODE ?: throw ChalaException("Uninitialized Chala node! Please run ChalaNode.setup(..)")
     }
 
     fun setup(config: ChalaConfiguration) {
       if (NODE != null)
-        throw ChalaException("ChalaNode is already initialized!")
+        throw ChalaException("Chala node is already initialized!")
 
+      println("-------------------------------------- ChalaNode --------------------------------------")
       val store = ChalaStore(config.storeConf)
+      LOGGER.info("Chala store configured.")
 
-      println("-------------------------------------- ChalaSDK --------------------------------------")
-      LOGGER.info("ChalaStore configured.")
+      val server = ChalaServer(config)
+      LOGGER.info("Chala server configured.")
 
-      NODE = ChalaNode(store, config.chain, config)
+      NODE = ChalaNode(store, server, config)
       node.loadState()
       node.context.set(RunContext.CLIENT)
-      LOGGER.info("ChalaNode configured.")
+      LOGGER.info("Chala node is UP.")
     }
 
     @OptIn(ExperimentalSerializationApi::class)
-    fun submit(request: ChalaRequest) {
+    fun submit(command: ChalaCommand) {
       if (node.context.get() != RunContext.CLIENT)
         Bug.SUBMIT.report()
 
       // disable database access with CHECK context
       node.context.set(RunContext.CHECK)
-        request.check()
+        command.check()
       node.context.set(RunContext.CLIENT)
 
-      val requestName = request.javaClass.canonicalName
-      val serializer = node.config.serializers[requestName] ?:
+      val requestName = command.javaClass.canonicalName
+      val commandInfo = node.config.commands[requestName] ?:
         throw ChalaException("$requestName must be annotated with ${Command::class.qualifiedName}!")
 
-      val data = ProtoBuf.encodeToByteArray(serializer, request.data)
+      val data = ProtoBuf.encodeToByteArray(commandInfo.serializer, command.data)
       val packet = ProtoBuf.encodeToByteArray(DataPacket(requestName, data))
 
       // TODO: sign packet -> tx with node key
       val tx = packet
 
-      node.chain.submmit(tx)
+      node.config.chain.submmit(tx)
     }
   }
 
@@ -70,18 +71,18 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
   private val pendingTx = mutableListOf<ByteArray>()
   private var height: Long = 0
   private lateinit var state: ByteArray
-  private lateinit var request: ChalaRequest
+  private lateinit var command: ChalaCommand
   private lateinit var data: Any
 
   private val locker = ReentrantLock()
   internal val context = ThreadLocal<RunContext>()
 
   init {
-    chain.onStartBlock = this::startBlock
-    chain.onValidateTx = this::validateTx
-    chain.onCommitTx = this::commitTx
-    chain.onCommitBlock = this::commitBlock
-    chain.onRollbackBlock = this::rollbackBlock
+    config.chain.onStartBlock = this::startBlock
+    config.chain.onValidateTx = this::validateTx
+    config.chain.onCommitTx = this::commitTx
+    config.chain.onCommitBlock = this::commitBlock
+    config.chain.onRollbackBlock = this::rollbackBlock
   }
 
   internal fun loadState() {
@@ -109,13 +110,11 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     try {
       // TODO: check signature of tx and unpack
       val packet = ProtoBuf.decodeFromByteArray<DataPacket>(tx)
-      val serializer = config.serializers[packet.type]
+      val commandInfo = config.commands[packet.type]
         ?: throw ChalaException("${packet.type} must be annotated with ${Command::class.qualifiedName}!")
 
-      data = ProtoBuf.decodeFromByteArray(serializer, packet.data)
-
-      val requestConstructor = config.constructors[packet.type]!!
-      request = requestConstructor.call(data)
+      data = ProtoBuf.decodeFromByteArray(commandInfo.serializer, packet.data)
+      command = commandInfo.constructor.call(data)
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to decode transaction: ${ex.message}")
@@ -125,7 +124,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     try {
       // disable database access with CHECK context
       context.set(RunContext.CHECK)
-      request.check()
+      command.check()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to check transaction: ${ex.message}")
@@ -135,7 +134,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     try {
       // disable database changes with VALIDATE context
       context.set(RunContext.VALIDATE)
-      request.validate()
+      command.validate()
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       LOGGER.warn("Failed to validate transaction: ${ex.message}")
@@ -150,7 +149,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, val chain: C
     try {
       // enable database changes with COMMIT context
       context.set(RunContext.COMMIT)
-      request.commit()
+      command.commit()
     } catch (ex: Throwable) {
       // Can contain pending changes in the hibernate session. Abort the entire block
       // Possible exception at this phase could be related to DB connectivity
