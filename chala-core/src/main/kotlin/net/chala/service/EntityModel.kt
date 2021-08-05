@@ -1,7 +1,7 @@
 package net.chala.service
 
-import net.chala.ChalaRecord
-import net.chala.ChalaRepository
+import net.chala.api.ChalaRecord
+import net.chala.api.ChalaRepository
 import net.chala.utils.shaFingerprint
 import javax.persistence.Column
 import javax.persistence.Entity

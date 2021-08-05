@@ -28,3 +28,5 @@ data class ChalaConfigException(val msg: String) : RuntimeException(msg)
 data class ChalaBugException(val msg: String, val url: String) : RuntimeException(msg)
 
 data class ChalaException(val msg: String) : RuntimeException(msg)
+
+data class FieldConstraintException(val field: String, val msg: String) : RuntimeException(msg)

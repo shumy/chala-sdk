@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
+import net.chala.api.ICommand
 import net.chala.api.Command
 import net.chala.conf.ChalaConfiguration
 import net.chala.server.ChainErrorResponse
@@ -49,13 +50,14 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     }
 
     @OptIn(ExperimentalSerializationApi::class)
-    fun submit(command: ChalaCommand): String {
+    fun submit(command: ICommand): String {
       if (chainContext.get() != RunContext.CLIENT)
         Bug.SUBMIT.report()
 
       // disable database access with CHECK context
       chainContext.set(RunContext.CHECK)
-        command.check()
+        val objSpec = node.config.objSpecs[command.data::class]!!
+        ChalaChecker.check(objSpec, command.data)
       chainContext.set(RunContext.CLIENT)
 
       val requestName = command.javaClass.canonicalName
@@ -80,7 +82,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
   private lateinit var appState: AppState
 
   private val pendingTx = mutableListOf<ByteArray>()
-  private lateinit var command: ChalaCommand
+  private lateinit var command: ICommand
   private lateinit var data: Any
 
   private val locker = ReentrantLock()
@@ -134,7 +136,8 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
     try {
       // disable database access with CHECK context
       chainContext.set(RunContext.CHECK)
-      command.check()
+      val objSpec = node.config.objSpecs[data::class]!!
+      ChalaChecker.check(objSpec, data)
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       reportTxError(tx, 400, "Failed to check cmd: ${ex.message}")

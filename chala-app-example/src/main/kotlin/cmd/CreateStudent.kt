@@ -1,19 +1,22 @@
 package net.chala.app.example.cmd
 
 import kotlinx.serialization.Serializable
-import net.chala.ChalaCommand
-import net.chala.api.Command
+import net.chala.api.*
+import net.chala.app.example.NoAtSymbol
+import net.chala.app.example.Range
 import net.chala.app.example.Student
 
 @Serializable
-data class CreateStudent(val name: String, val index: Int)
+data class CreateStudent(
+  @Check(NoAtSymbol::class)
+  val name: String,
+
+  @Range(min = 10, max = 20)
+  val index: Int
+)
 
 @Command("/student/create", document = "student.yaml")
-class CreateStudentCmd(override val data: CreateStudent) : ChalaCommand {
-  override fun check() {
-    println("      CreateStudentCmd.check: $data")
-  }
-
+class CreateStudentCmd(override val data: CreateStudent) : ICommand {
   override fun validate() {
     println("      CreateStudentCmd.validate: $data")
     if (data.index % 3 == 2)

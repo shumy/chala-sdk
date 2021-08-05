@@ -1,4 +1,6 @@
-package net.chala
+package net.chala.api
+
+import net.chala.ChalaNode
 
 open class ChalaRecord {
   fun save() = ChalaNode.node.store.save(this)
@@ -23,10 +25,3 @@ open class ChalaRepository<E> {
   }
 }
 
-interface ChalaCommand {
-  val data: Any
-
-  fun check(): Unit
-  fun validate(): Unit
-  fun commit(): Unit
-}

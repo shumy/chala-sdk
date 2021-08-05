@@ -3,6 +3,9 @@ package net.chala.utils
 import java.io.File
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
+import kotlin.reflect.KType
+import kotlin.reflect.full.allSuperclasses
+import kotlin.reflect.full.allSupertypes
 import kotlin.reflect.jvm.javaMethod
 
 internal fun List<Class<*>>.filterClassByAnnotation(annotation: KClass<out Annotation>) =
@@ -14,6 +17,10 @@ internal fun Collection<KFunction<*>>.filterMethodByAnnotation(annotation: KClas
 
 internal fun KClass<*>.defaultConstructor(): KFunction<Any> =
   constructors.first { it.name == "<init>" }
+
+@Suppress("UNCHECKED_CAST")
+internal fun KClass<*>.getInterface(interf: KClass<*>): KType =
+  allSupertypes.first { (it.classifier as KClass<*>).qualifiedName == interf.qualifiedName }
 
 internal fun getClasses(packageName: String): Sequence<Class<*>> {
   val classLoader = Thread.currentThread().contextClassLoader!!

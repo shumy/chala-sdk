@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import io.javalin.Javalin
 import io.javalin.http.BadRequestResponse
 import net.chala.ChalaNode
+import net.chala.FieldConstraintException
 import net.chala.RunContext
 import net.chala.chainContext
 import net.chala.conf.ChalaConfiguration
@@ -16,6 +17,7 @@ import net.chala.utils.defaultConstructor
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
+import kotlin.reflect.full.memberProperties
 
 private val LOGGER = LoggerFactory.getLogger(ChalaServer::class.java)
 
@@ -48,29 +50,35 @@ internal class ChalaServer(config: ChalaConfiguration) {
     cCommand.publish(JsonParser.json(committed))
 
   private fun Javalin.setupErrorHandlers() {
+    exception(BadRequestResponse::class.java) { ex, ctx ->
+      val error = BadInputResponse(ex.message)
+      ctx.status(ex.status)
+      ctx.result(JsonParser.json(error))
+    }
+
     exception(InvalidFormatException::class.java) { ex, ctx ->
+      val fieldName = ex.path[0]?.fieldName ?: "unknown-field"
       val message = ex.path[0]?.let { ref ->
-        val fieldName = ref.fieldName
-        val params = (ref.from as Class<*>).kotlin.defaultConstructor().parameters.first { it.name == fieldName }
-        val fieldType = (params.type.classifier as KClass<*>).simpleName
-        "Invalid type for field: ($fieldName: $fieldType)"
+        val prop = (ref.from as Class<*>).kotlin.memberProperties.first { it.name == fieldName }
+        val fieldType = (prop.returnType.classifier as KClass<*>).simpleName
+        "Invalid field type, expecting: $fieldType"
       }
 
-      val error = BadInputResponse(message)
+      val error = BadFieldConstraintResponse(fieldName, message)
       ctx.status(400)
       ctx.result(JsonParser.json(error))
     }
 
     exception(MissingKotlinParameterException::class.java) { ex, ctx ->
       val fieldType = (ex.parameter.type.classifier as KClass<*>).simpleName
-      val error = BadInputResponse("Missing mandatory field: (${ex.parameter.name}: $fieldType)")
+      val error = BadFieldConstraintResponse(ex.parameter.name!!, "Missing mandatory field")
       ctx.status(400)
       ctx.result(JsonParser.json(error))
     }
 
-    exception(BadRequestResponse::class.java) { ex, ctx ->
-      val error = BadInputResponse(ex.message)
-      ctx.status(ex.status)
+    exception(FieldConstraintException::class.java) { ex, ctx ->
+      val error = BadFieldConstraintResponse(ex.field, ex.message)
+      ctx.status(400)
       ctx.result(JsonParser.json(error))
     }
   }

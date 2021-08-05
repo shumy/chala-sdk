@@ -18,7 +18,8 @@ private val LOGGER = LoggerFactory.getLogger(ChalaConfiguration::class.java)
 class ChalaConfiguration private constructor(
   val jpaClasses: List<KClass<*>>,
   val commands: Map<String, CommandInfo>,
-  val queries: List<QueryInfo>
+  val queries: List<QueryInfo>,
+  val objSpecs: Map<KClass<*>, ObjectSpec>
 ) {
 
   companion object {
@@ -40,6 +41,9 @@ class ChalaConfiguration private constructor(
         .map { it.convertToChalaCommand() }
         .associate { it.qualifiedName!! to it.mapToCommandInfo() }
 
+      val objSpecs = commands.values
+        .associate { it.dataType to it.dataType.getObjectSpec() }
+
       LOGGER.info("Scanning for classes with @${Query::class.simpleName}:")
       val queries = allClasses
         .filterClassByAnnotation(Query::class)
@@ -59,7 +63,7 @@ class ChalaConfiguration private constructor(
         checkPaths.add(path)
       }
 
-      return ChalaConfiguration(jpaClasses, commands, queries)
+      return ChalaConfiguration(jpaClasses, commands, queries, objSpecs)
     }
   }
 

@@ -1,7 +1,7 @@
 package net.chala.app.example
 
-import net.chala.ChalaRecord
-import net.chala.ChalaRepository
+import net.chala.api.ChalaRecord
+import net.chala.api.ChalaRepository
 import javax.persistence.Entity
 import javax.persistence.GeneratedValue
 import javax.persistence.GenerationType
