@@ -4,9 +4,9 @@ import kotlinx.serialization.Serializable
 import net.chala.api.Command
 import net.chala.api.ICommand
 import net.chala.app.example.NoAtSymbol
-import net.chala.app.example.Range
 import net.chala.app.example.Student
 import net.chala.validation.Check
+import net.chala.validation.Range
 
 @Serializable
 data class CreateStudent(
