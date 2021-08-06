@@ -12,7 +12,10 @@ class NoAtSymbol : ICheck<String> {
     else CheckResult.Ok
 }
 
+@MustBeDocumented
 @CheckAnnotation(CheckRange::class)
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.RUNTIME)
 annotation class Range(val min: Int, val max: Int)
 
 internal class CheckRange : ICheckAnnotation<Range, Int> {

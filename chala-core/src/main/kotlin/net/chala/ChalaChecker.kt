@@ -2,6 +2,7 @@ package net.chala
 
 import net.chala.api.CheckResult
 import net.chala.api.ICheck
+import net.chala.api.ICheckAnnotation
 import net.chala.conf.ObjectSpec
 import kotlin.reflect.full.memberProperties
 
@@ -15,11 +16,8 @@ internal object ChalaChecker {
     for (field in klass.memberProperties) {
       val value = field.get(instance)
       if (value != null) {
-        // direct check
-        //println("Check ${field.name} - $value with ${objSpec.directChecks[field.name]}")
         objSpec.directChecks[field.name]?.forEach { it.okOrThrow(field.name, value) }
-
-        // annotation check
+        objSpec.annotationChecks[field.name]?.forEach { it.okOrThrow(field.name, value) }
       }
     }
   }
@@ -30,4 +28,11 @@ internal fun ICheck<Any>.okOrThrow(field: String, value: Any) {
   if (result is CheckResult.Error)
     throw FieldConstraintException(field, result.msg)
 }
+
+internal fun Pair<Annotation, List<ICheckAnnotation<Annotation, Any>>>.okOrThrow(field: String, value: Any) =
+  second.forEach {
+    val result = it.check(first, value)
+    if (result is CheckResult.Error)
+      throw FieldConstraintException(field, result.msg)
+  }
 

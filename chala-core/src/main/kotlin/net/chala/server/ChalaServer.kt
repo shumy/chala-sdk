@@ -13,7 +13,6 @@ import net.chala.conf.CommandInfo
 import net.chala.conf.EndpointInfo
 import net.chala.conf.QueryInfo
 import net.chala.utils.JsonParser
-import net.chala.utils.defaultConstructor
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter
@@ -70,7 +69,6 @@ internal class ChalaServer(config: ChalaConfiguration) {
     }
 
     exception(MissingKotlinParameterException::class.java) { ex, ctx ->
-      val fieldType = (ex.parameter.type.classifier as KClass<*>).simpleName
       val error = BadFieldConstraintResponse(ex.parameter.name!!, "Missing mandatory field")
       ctx.status(400)
       ctx.result(JsonParser.json(error))
