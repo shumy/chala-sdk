@@ -1,9 +1,9 @@
 package net.chala.app.example
 
-import net.chala.api.CheckAnnotation
-import net.chala.api.CheckResult
-import net.chala.api.ICheck
-import net.chala.api.ICheckAnnotation
+import net.chala.validation.CheckAnnotation
+import net.chala.validation.CheckResult
+import net.chala.validation.ICheck
+import net.chala.validation.ICheckAnnotation
 
 class NoAtSymbol : ICheck<String> {
   override fun check(value: String) =

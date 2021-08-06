@@ -23,10 +23,8 @@ enum class Bug(val msg: String, val uri: String) {
   fun report(): Nothing = throw ChalaBugException(msg, "$BASE_URL/$uri")
 }
 
-data class ChalaConfigException(val msg: String) : RuntimeException(msg)
+data class ChalaConfigException(override val message: String) : RuntimeException()
 
-data class ChalaBugException(val msg: String, val url: String) : RuntimeException(msg)
+data class ChalaBugException(override val message: String, val url: String) : RuntimeException()
 
-data class ChalaException(val msg: String) : RuntimeException(msg)
-
-data class FieldConstraintException(val field: String, val msg: String) : RuntimeException(msg)
+data class ChalaException(override val message: String) : RuntimeException()

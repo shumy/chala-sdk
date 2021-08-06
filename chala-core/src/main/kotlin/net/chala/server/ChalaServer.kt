@@ -5,7 +5,6 @@ import com.fasterxml.jackson.module.kotlin.MissingKotlinParameterException
 import io.javalin.Javalin
 import io.javalin.http.BadRequestResponse
 import net.chala.ChalaNode
-import net.chala.FieldConstraintException
 import net.chala.RunContext
 import net.chala.chainContext
 import net.chala.conf.ChalaConfiguration
@@ -13,6 +12,7 @@ import net.chala.conf.CommandInfo
 import net.chala.conf.EndpointInfo
 import net.chala.conf.QueryInfo
 import net.chala.utils.JsonParser
+import net.chala.validation.FieldConstraintException
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 import kotlin.reflect.KParameter

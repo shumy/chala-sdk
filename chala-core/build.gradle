@@ -12,8 +12,8 @@ dependencies {
   implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8'
   implementation 'com.fasterxml.jackson.module:jackson-module-kotlin'
 
+  api project(':chala-validation')
   api 'javax.persistence:javax.persistence-api:2.2'
-  //api 'javax.validation:validation-api:2.0.1.Final'
   api 'org.jetbrains.kotlinx:kotlinx-serialization-core:1.2.1'
 }
 

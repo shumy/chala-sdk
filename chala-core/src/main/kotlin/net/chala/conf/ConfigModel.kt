@@ -1,8 +1,6 @@
 package net.chala.conf
 
 import kotlinx.serialization.KSerializer
-import net.chala.api.ICheck
-import net.chala.api.ICheckAnnotation
 import net.chala.api.ICommand
 import kotlin.reflect.KClass
 import kotlin.reflect.KFunction
@@ -28,9 +26,4 @@ class EndpointInfo(
   val ref: String,
   val method: KFunction<*>,
   val params: List<KParameter>
-)
-
-class ObjectSpec(
-  val directChecks: Map<String, List<ICheck<Any>>>,
-  val annotationChecks: Map<String, List<Pair<Annotation, List<ICheckAnnotation<Annotation, Any>>>>>
 )

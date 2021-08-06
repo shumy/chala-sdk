@@ -1,3 +1,3 @@
-include 'chala-spi', 'chala-core', 'chala-app-example'
+include 'chala-validation', 'chala-spi', 'chala-core', 'chala-app-example'
 
 rootProject.name = 'chala-sdk'

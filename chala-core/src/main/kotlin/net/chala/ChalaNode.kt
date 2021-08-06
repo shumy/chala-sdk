@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
 import kotlinx.serialization.protobuf.ProtoBuf
-import net.chala.api.ICommand
 import net.chala.api.Command
+import net.chala.api.ICommand
 import net.chala.conf.ChalaConfiguration
 import net.chala.server.ChainErrorResponse
 import net.chala.server.ChalaServer
@@ -15,6 +15,7 @@ import net.chala.service.AppState
 import net.chala.store.ChalaStore
 import net.chala.utils.shaDigest
 import net.chala.utils.shaFingerprint
+import net.chala.validation.check
 import org.slf4j.LoggerFactory
 import java.util.*
 import java.util.concurrent.locks.ReentrantLock
@@ -57,7 +58,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       // disable database access with CHECK context
       chainContext.set(RunContext.CHECK)
         val objSpec = node.config.objSpecs[command.data::class]!!
-        ChalaChecker.check(objSpec, command.data)
+        objSpec.check(command.data)
       chainContext.set(RunContext.CLIENT)
 
       val requestName = command.javaClass.canonicalName
@@ -137,7 +138,7 @@ class ChalaNode private constructor(internal val store: ChalaStore, internal val
       // disable database access with CHECK context
       chainContext.set(RunContext.CHECK)
       val objSpec = node.config.objSpecs[data::class]!!
-      ChalaChecker.check(objSpec, data)
+      objSpec.check(data)
     } catch (ex: Throwable) {
       // No changes in the hibernate session were performed. Abort the current tx and proceed to the next one
       reportTxError(tx, 400, "Failed to check cmd: ${ex.message}")

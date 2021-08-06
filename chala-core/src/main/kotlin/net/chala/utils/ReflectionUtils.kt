@@ -18,10 +18,6 @@ internal fun Collection<KFunction<*>>.filterMethodByAnnotation(annotation: KClas
 internal fun KClass<*>.defaultConstructor(): KFunction<Any> =
   constructors.first { it.name == "<init>" }
 
-@Suppress("UNCHECKED_CAST")
-internal fun KClass<*>.getInterface(interf: KClass<*>): KType =
-  allSupertypes.first { (it.classifier as KClass<*>).qualifiedName == interf.qualifiedName }
-
 internal fun getClasses(packageName: String): Sequence<Class<*>> {
   val classLoader = Thread.currentThread().contextClassLoader!!
   val path = packageName.replace('.', '/')

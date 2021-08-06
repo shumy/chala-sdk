@@ -9,6 +9,8 @@ import net.chala.service.ChainQuery
 import net.chala.store.StoreConfig
 import net.chala.utils.filterClassByAnnotation
 import net.chala.utils.getClasses
+import net.chala.validation.ObjectSpec
+import net.chala.validation.getObjectSpec
 import org.slf4j.LoggerFactory
 import javax.persistence.Entity
 import kotlin.reflect.KClass

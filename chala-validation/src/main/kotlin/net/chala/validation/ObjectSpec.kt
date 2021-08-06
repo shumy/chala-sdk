@@ -1,19 +1,20 @@
-package net.chala.conf
+package net.chala.validation
 
-import net.chala.ChalaConfigException
-import net.chala.api.Check
-import net.chala.api.CheckAnnotation
-import net.chala.api.ICheck
-import net.chala.api.ICheckAnnotation
-import net.chala.utils.defaultConstructor
-import net.chala.utils.getInterface
 import kotlin.reflect.KClass
+import kotlin.reflect.KFunction
 import kotlin.reflect.KProperty1
+import kotlin.reflect.KType
+import kotlin.reflect.full.allSupertypes
 import kotlin.reflect.full.hasAnnotation
 import kotlin.reflect.full.memberProperties
 
+class ObjectSpec(
+  val directChecks: Map<String, List<ICheck<Any>>>,
+  val annotationChecks: Map<String, List<Pair<Annotation, List<ICheckAnnotation<Annotation, Any>>>>>
+)
+
 @Suppress("UNCHECKED_CAST")
-internal fun KClass<*>.getObjectSpec(): ObjectSpec {
+fun KClass<*>.getObjectSpec(): ObjectSpec {
   // TODO: get instance checks
 
   val directChecks = memberProperties
@@ -34,7 +35,7 @@ private fun KProperty1<*, *>.getDirectChecks(className: String) =
     .map { ann ->
       val checkerType = ann.value.getInterface(ICheck::class).arguments[0].type
       if (returnType != checkerType)
-        throw ChalaConfigException("Checker ${ann.value.qualifiedName} (type=$checkerType) has incompatible type for field $className.$name ($returnType)!")
+        throw ObjectSpecException("Checker ${ann.value.qualifiedName} (type=$checkerType) has incompatible type for field $className.$name ($returnType)!")
 
       ann.value.defaultConstructor().call() as ICheck<Any>
     }
@@ -50,14 +51,21 @@ private fun KProperty1<*, *>.getAnnotationChecks(className: String) =
 
         val annotationType = iChecker.arguments[0].type?.classifier as KClass<*>
         if (ann.annotationClass != annotationType)
-          throw ChalaConfigException("Checker ${it.value.qualifiedName} (type=$annotationType) has incompatible annotation for ${ann.annotationClass.qualifiedName}!")
+          throw ObjectSpecException("Checker ${it.value.qualifiedName} (type=$annotationType) has incompatible annotation for ${ann.annotationClass.qualifiedName}!")
 
         val checkerType = iChecker.arguments[1].type
         if (returnType != checkerType)
-          throw ChalaConfigException("Checker ${it.value.qualifiedName} (type=$checkerType) has incompatible type for field $className.$name ($returnType)!")
+          throw ObjectSpecException("Checker ${it.value.qualifiedName} (type=$checkerType) has incompatible type for field $className.$name ($returnType)!")
 
         it.value.defaultConstructor().call() as ICheckAnnotation<Annotation, Any>
       }
 
       Pair(ann, instances)
     }
+
+private fun KClass<*>.defaultConstructor(): KFunction<Any> =
+  constructors.first { it.name == "<init>" }
+
+@Suppress("UNCHECKED_CAST")
+private fun KClass<*>.getInterface(interf: KClass<*>): KType =
+  allSupertypes.first { (it.classifier as KClass<*>).qualifiedName == interf.qualifiedName }
