@@ -3,7 +3,7 @@ plugins {
   id 'org.jetbrains.kotlin.plugin.serialization' version '1.5.10'
   id 'org.jetbrains.kotlin.plugin.jpa' version '1.5.10'
 
-  id 'com.github.ben-manes.versions' version '0.39.0' // run to check latest verions ./gradlew dependencyUpdates
+  id 'com.github.ben-manes.versions' version '0.39.0' // run to check latest versions ./gradlew dependencyUpdates
   id 'com.adarshr.test-logger' version '3.0.0'
   id 'jacoco'
 }
@@ -37,6 +37,7 @@ allprojects {
   }
 
   jacoco {
+    toolVersion = '0.8.7'
     reportsDirectory = file("${project.projectDir}/jacoco")
   }
 

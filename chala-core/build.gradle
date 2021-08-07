@@ -4,7 +4,7 @@ dependencies {
 
   implementation 'org.slf4j:slf4j-simple:1.7.31'
   implementation 'org.hibernate:hibernate-core:5.5.2.Final'
-  implementation 'org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.2.1'
+  implementation 'org.jetbrains.kotlinx:kotlinx-serialization-protobuf:1.2.2'
   implementation 'io.javalin:javalin:3.13.9'
 
   implementation platform('com.fasterxml.jackson:jackson-bom:2.12.4')

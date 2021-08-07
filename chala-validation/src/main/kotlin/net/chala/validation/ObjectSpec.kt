@@ -33,9 +33,8 @@ private fun KProperty1<*, *>.getDirectChecks(className: String) =
   annotations
     .filterIsInstance(Check::class.java)
     .map { ann ->
-      val checkerType = ann.value.getInterface(ICheck::class).arguments[0].type
-      if (returnType != checkerType)
-        throw ObjectSpecException("Checker ${ann.value.qualifiedName} (type=$checkerType) has incompatible type for field $className.$name ($returnType)!")
+      val checkerType = ann.value.getInterface(ICheck::class).arguments[0].type!!
+      isCompatibleWith(ann.value.qualifiedName!!, className, checkerType)
 
       ann.value.defaultConstructor().call() as ICheck<Any>
     }
@@ -51,17 +50,16 @@ private fun KProperty1<*, *>.getAnnotationChecks(className: String) =
 
         val annotationType = iChecker.arguments[0].type?.classifier as KClass<*>
         if (ann.annotationClass != annotationType)
-          throw ObjectSpecException("Checker ${it.value.qualifiedName} (type=$annotationType) has incompatible annotation for ${ann.annotationClass.qualifiedName}!")
+          throw ObjectSpecException("Validator ${it.value.qualifiedName} (@${annotationType.simpleName}) has incompatible annotation, requires @${ann.annotationClass.simpleName}!")
 
-        val checkerType = iChecker.arguments[1].type
-        if (returnType != checkerType)
-          throw ObjectSpecException("Checker ${it.value.qualifiedName} (type=$checkerType) has incompatible type for field $className.$name ($returnType)!")
+        isCompatibleWith(it.value.qualifiedName!!, className, iChecker.arguments[1].type!!)
 
         it.value.defaultConstructor().call() as ICheckAnnotation<Annotation, Any>
       }
 
       Pair(ann, instances)
     }
+
 
 private fun KClass<*>.defaultConstructor(): KFunction<Any> =
   constructors.first { it.name == "<init>" }
